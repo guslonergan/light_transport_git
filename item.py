@@ -1,7 +1,8 @@
 import numpy as np
 import math
 from scipy.stats import norm
-from random import random,randint
+# from random import random,randint
+import random
 import logging
 
 
@@ -46,9 +47,6 @@ class white_Lambert_in_air(bounce_rule):
 		pass
 	def resample(self,):
 		pass
-
-
-
 	def density(self,normal,incident_beam,incident_direction,reflected_beam,reflected_direction):#are the dot products correct?
 		if incident_beam.color == reflected_beam.color:
 			return np.dot(normal,incident_beam)*(1/np.dot(normal,normal))*(1/np.linalg.norm(incident_direction))*(1/np.linalg.norm(reflected_direction))*np.dot(normal,reflected_direction)*4
@@ -70,7 +68,7 @@ class spherical_normal_resampler:
 		pass
 	def resample(self,direction,m,s):
 		ppf = normal_ppf(m,s)
-		y,z = monte_carlo(ppf),mote_carlo(ppf)
+		y,z = monte_carlo(ppf),monte_carlo(ppf)
 		d = 4 + y**2 + z**2
 		c = 4*z/d
 		b = 4*y/d
@@ -78,10 +76,8 @@ class spherical_normal_resampler:
 		direction = direction/np.linalg.norm(direction)
 		v1 = np.array([random.uniform(0,1),random.uniform(0,1),random.uniform(0,1)])
 		v2 = np.array([random.uniform(0,1),random.uniform(0,1),random.uniform(0,1)])
-		q,r = np.linalg(np.array([-direction,v1,v1]).transpose)
-		return q*direction
-
-
+		q,r = np.linalg.qr(np.array([-direction,v1,v1]).transpose())
+		return np.dot(q,np.array([a,b,c]))
 
 
 
@@ -91,11 +87,13 @@ class spherical_normal_resampler:
 
 # class interaction_distribution:
 
-def interact(beam,angle,media):#Assume a given photon beam strikes a horizontal boundary in the x-direction at a certain angle. Samples a photon beam+direction for the interaction.
-	if media == {'in':'Air','out':'Lambertian_White'}:
-		pass
+# def interact(beam,angle,media):#Assume a given photon beam strikes a horizontal boundary in the x-direction at a certain angle. Samples a photon beam+direction for the interaction.
+# 	if media == {'in':'Air','out':'Lambertian_White'}:
+# 		pass
 
 # ---------------------------------------------------------------------------
+
+
 
 
 class item: #interface
@@ -211,7 +209,6 @@ class triangle(surface):
 # class test(item):
 # 	def __init__(self,*args):
 # 		super().__init__()
-
 
 
 

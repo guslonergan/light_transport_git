@@ -1,6 +1,8 @@
 import unittest
 import item
 import numpy as np
+import random
+from scipy.stats import norm
 
 class extraneous_functions_test(unittest.TestCase):
 	def test(self):
@@ -28,8 +30,35 @@ class item_test(unittest.TestCase):
 		self.assertEqual(S1.hit_stats(point2,direction)['media']['in'],'Air')
 		self.assertEqual(S1.hit_stats(point3,direction)['media']['out'],'Air')
 
+# x = item_test()
+# y = x.test_hit()
 
-x = item_test()
-y = x.test_hit()
+
+
+
+
+I = item.spherical_normal_resampler()
+print(I.resample(np.array([-20,0,1]),0,0.1))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
