@@ -9,6 +9,7 @@ import logging
 # ---------------------------------------------------------------------------
 
 def exists(thing):
+	# thing
 	try:
 		if thing == None:
 			return False
@@ -36,10 +37,10 @@ class simple_beam(beam):
 
 # ---------------------------------------------------------------------------
 
-class bounce_rule:#normalized so that the normal vector is vertical and the incoming beam is striking the point from above and left in the xz plane
+class bounce_rule:
 	def __init__(self):
 		raise Exception('Undefined.')
-	def density(self,in_beam,in_angle,out_beam,out_direction):
+	def density(self,args):
 		raise Exception('Undefined.')
 
 class white_Lambert_in_air(bounce_rule):
@@ -47,7 +48,7 @@ class white_Lambert_in_air(bounce_rule):
 		pass
 	def resample(self,):
 		pass
-	def density(self,normal,incident_beam,incident_direction,reflected_beam,reflected_direction):#are the dot products correct?
+	def density(self,normal,incident_beam,incident_direction,reflected_beam,reflected_direction):
 		if incident_beam.color == reflected_beam.color:
 			return np.dot(normal,incident_beam)*(1/np.dot(normal,normal))*(1/np.linalg.norm(incident_direction))*(1/np.linalg.norm(reflected_direction))*np.dot(normal,reflected_direction)*4
 		else:
@@ -55,7 +56,6 @@ class white_Lambert_in_air(bounce_rule):
 
 
 # ---------------------------------------------------------------------------
-
 
 class resampler:
 	def __init__(self):
@@ -78,9 +78,6 @@ class spherical_normal_resampler:
 		v2 = np.array([random.uniform(0,1),random.uniform(0,1),random.uniform(0,1)])
 		q,r = np.linalg.qr(np.array([-direction,v1,v1]).transpose())
 		return np.dot(q,np.array([a,b,c]))
-
-
-
 
 # ---------------------------------------------------------------------------
 
@@ -129,15 +126,6 @@ class composite_surface(surface):
 			return {'hit':closest_projection,'piece':closest_piece}
 		except Exception:
 			return None
-		# 	try:
-		# 		new_distance = np.linalg.norm(projection-point)
-		# 		if new_distance < curr_distance:
-		# 			curr_distance = new_distance
-		# 			curr_piece = piece
-		# 			curr_projection = projection
-		# 	except Exception:
-		# 		pass
-		# return curr_projection,curr_piece
 
 	def hit_stats(self,point,direction):
 		hit = self.hit(point,direction)
@@ -145,14 +133,9 @@ class composite_surface(surface):
 			return hit['piece'].hit_stats(point,direction)
 		else:
 			return None
-		# try:#I don't like this
-		# 	projection,piece = self.hit(point,direction)
-		# 	return piece.hit_stats(point,direction)
-		# except Exception:
-		# 	return None
 
 class triangle(surface):
-	def __init__(self,vertices,out_medium,in_medium): #convention: outward pointing normal
+	def __init__(self,vertices,outside_medium,inside_medium): #convention: outward pointing normal
 		self.vertices = vertices #should be a list of three vertices
 		self.in_medium = in_medium
 		self.out_medium = out_medium
