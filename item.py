@@ -11,12 +11,16 @@ import logging
 def exists(thing):
 	# thing
 	try:
-		if thing == None:
+		if thing is None:
 			return False
 		else:
 			return True
 	except Exception:
 		return True
+
+
+# ---------------------------------------------------------------------------
+
 
 def monte_carlo(ppf):
 	x = random.uniform(0,1)
@@ -27,6 +31,10 @@ def normal_ppf(m,s):
 		return norm.ppf(x,m,s)
 	return helper
 
+
+# ---------------------------------------------------------------------------
+
+
 class beam:
 	def __init__(self):
 		raise Exception('Undefined.')
@@ -35,27 +43,44 @@ class simple_beam(beam):
 	def __init__(self,color,intensity):
 		self.color = color
 
+
 # ---------------------------------------------------------------------------
 
+
 class bounce_rule:
-	def __init__(self):
+	def __init__(self,attenuation): #the value 'attenuation' called for is exp(-k) where k is the physical attenuation coefficient
 		raise Exception('Undefined.')
 	def density(self,args):
 		raise Exception('Undefined.')
 
-class white_Lambert_in_air(bounce_rule):
-	def __init__(self):
+class white_Lambert(bounce_rule):
+	def __init__(self,attenuation = 0,sampling_sigma = 0.5):
+		self.attenuation = attenuation
+		self.sampling_sigma = sampling_sigma
+	def resample(self):
 		pass
-	def resample(self,):
-		pass
-	def density(self,normal,incident_beam,incident_direction,reflected_beam,reflected_direction):
-		if incident_beam.color == reflected_beam.color:
-			return np.dot(normal,incident_beam)*(1/np.dot(normal,normal))*(1/np.linalg.norm(incident_direction))*(1/np.linalg.norm(reflected_direction))*np.dot(normal,reflected_direction)*4
+	def reflection_density(self,normal,incident_beam,incident_direction,reflected_beam,reflected_direction): #for other types of material there is also a transmission density
+		if incident_beam.color == reflected_beam.color and np.dot(incident_direction,normal) < 0 and np.dot(reflected_direction,normal) > 0:
+			# return np.dot(normal,incident_beam)*(1/np.dot(normal,normal))*(1/np.linalg.norm(incident_direction))*(1/np.linalg.norm(reflected_direction))*np.dot(normal,reflected_direction)*4
+			return -np.dot(normal,incident_direction)*(1/np.linalg.norm(normal))*(1/np.linalg.norm(incident_direction))*(1/math.pi)
 		else:
 			return 0
+	def reflection_sample(self,normal): #takes a sample of a ray emanating from the surface; distribution is not related to the physical reflection_density above
+		while True:
+			output = spherical_normal_resampler().resample(normal,0,self.sampling_sigma)
+			if np.dot(output,normal) > 0:
+				return output
+
+class air(bounce_rule):
+	def __init__(self,attenuation = 1):
+		self.attenuation = attenuation
+
+
+
 
 
 # ---------------------------------------------------------------------------
+
 
 class resampler:
 	def __init__(self):
@@ -109,9 +134,10 @@ class surface(item):
 	def hit_stats(self,point,direction):
 		raise Exception('Undefined.')
 
-class composite_surface(surface):
+class composite_surface(surface):#may want to change this so it inherits from set,surface
 	def __init__(self,pieces):
 		self.pieces = pieces #an iterable of pieces composing our surface
+
 	def hit(self,point,direction):
 		min_distance = math.inf
 		for piece in self.pieces:
@@ -123,9 +149,9 @@ class composite_surface(surface):
 					closest_piece = piece
 					closest_projection = projection
 		try:
-			return {'hit':closest_projection,'piece':closest_piece}
+			return {'point':closest_projection,'piece':closest_piece}
 		except Exception:
-			return None
+			return {'point':None,'piece':None}
 
 	def hit_stats(self,point,direction):
 		hit = self.hit(point,direction)
@@ -134,8 +160,29 @@ class composite_surface(surface):
 		else:
 			return None
 
+	def cast(self,length,point,piece,direction='random'):
+		if exists(point):
+			beginning = hit_list_against_composite_surface({'point':point,'piece':piece})
+			if length == 0:
+				return beginning
+			else:
+				if direction == 'random':
+					direction = piece.choose_direction()
+				hit = self.hit(point,direction)
+				if exists(hit):
+					remaining = self.cast(length-1,hit['point'],hit['piece'])
+					if exists(remaining):
+						return beginning + remaining
+		return None
+
+
+
+
+
+
+
 class triangle(surface):
-	def __init__(self,vertices,outside_medium,inside_medium): #convention: outward pointing normal
+	def __init__(self,vertices,out_medium,in_medium): #convention: outward pointing normal
 		self.vertices = vertices #should be a list of three vertices
 		self.in_medium = in_medium
 		self.out_medium = out_medium
@@ -163,22 +210,38 @@ class triangle(surface):
 				return None
 		return projection
 	def media(self,direction):
-	#returns list of the medium the incident ray is in before it strikes the triangle in followed by the medium on the other side of the triangle 
+	#returns list of the medium the incident ray is in before it strikes the triangle followed by the medium on the other side of the triangle 
 		normal = self.normal()
 		output = [None,None]
 		index = int(np.dot(normal,direction)>0)
 		output[index] = self.out_medium
 		output[1-index] = self.in_medium
 		return {'in':output[0],'out':output[1]}
+
 	def hit_stats(self,point,direction):
 		projection = self.hit(point,direction)
 		if exists(projection):
 			normal = self.normal()
 			media = self.media(direction)
 			incidence = math.acos(abs(np.dot(normal,direction))/(np.linalg.norm(normal)*np.linalg.norm(direction)))
-			return {'normal':normal,'hit':projection,'media':media,'angle':incidence}
+			return {'normal':normal,'point':projection,'media':media,'angle':incidence}
 		else:
 			return None
+
+	def choose_direction(self):
+		normal = self.normal()
+		in_medium = self.in_medium
+		in_attenuation = in_medium.attenuation
+		out_medium = self.out_medium
+		out_attenuation = out_medium.attenuation
+		x = random.uniform(0,1)
+		if x < out_attenuation/(out_attenuation+in_attenuation):
+			return out_medium.reflection_sample(normal)
+		else:
+			return in_medium.reflection_sample(-normal)
+
+
+
 	# def interact(self,photon,direction):
 	# 	media = self.media(direction)
 	# 	normal = self.normal()
@@ -186,17 +249,25 @@ class triangle(surface):
 
 
 
+# ---------------------------------------------------------------------------
 
 
 
-# class test(item):
-# 	def __init__(self,*args):
-# 		super().__init__()
+class path:
+	def __init__(self):
+		raise Exception('Not defined.')
+
+class hit_list_against_composite_surface(list,path):
+	def __init__(self,*incidences):
+		super().__init__(incidences)
+		self.points = list(incidence.get('point') for incidence in self)
+		self.pieces = list(incidence.get('piece') for incidence in self)
+
+	def __add__(self, other):
+		return hit_list_against_composite_surface(*(self + other))
 
 
-
-
-
+# ---------------------------------------------------------------------------
 
 
 
