@@ -53,9 +53,7 @@ class simple_beam(beam):
 
 # the value 'attenuation' called for is exp(-k) where k is the physical attenuation coefficient
 class bounce_rule:
-    def __init__(
-        self, attenuation
-    ):
+    def __init__(self, attenuation):
         raise Exception("Undefined.")
 
     def density(self, args):
@@ -77,7 +75,8 @@ class white_Lambert(bounce_rule):
         incident_direction,
         reflected_beam,
         reflected_direction,
-    ):  # for other types of material there is also a transmission density
+    ):
+        # for other types of material there is also a transmission density
         if (
             incident_beam.color == reflected_beam.color
             and np.dot(incident_direction, normal) < 0
@@ -93,10 +92,8 @@ class white_Lambert(bounce_rule):
         else:
             return 0
 
-# takes a sample of a ray emanating from the surface; distribution is not related to the physical reflection_density above
-    def reflection_sample(
-        self, normal
-    ):
+    # takes a sample of a ray emanating from the surface; distribution is not related to the physical reflection_density above
+    def reflection_sample(self, normal):
         while True:
             output = spherical_normal_resampler().resample(
                 normal, 0, self.sampling_sigma
@@ -195,7 +192,7 @@ class composite_surface(surface):
         try:
             return {"point": closest_projection, "piece": closest_piece}
         except Exception:
-            return {"point": None, "piece": None}
+            return None
 
     def hit_stats(self, point, direction):
         hit = self.hit(point, direction)
@@ -204,35 +201,55 @@ class composite_surface(surface):
         else:
             return None
 
-    def cast(self, length, point, piece, direction="random"):
-        if exists(point):
-            beginning = hit_list_against_composite_surface(
-                {"point": point, "piece": piece}
-            )
-            if length == 0:
-                return beginning
-            else:
-                if direction == "random":
-                    direction = piece.choose_direction()
-                hit = self.hit(point, direction)
-                if exists(hit):
-                    remaining = self.cast(length - 1, hit["point"], hit["piece"])
-                    if exists(remaining):
-                        return beginning + remaining
-        return None
 
+
+
+    def cast(self, length, point, piece):
+        beginning = [{'point':point, 'piece':piece}]
+        print(point,piece.name)#FIXME
+        if length == 0:
+            return beginning
+        else:
+            direction = piece.choose_direction()
+            print(direction)
+            hit = self.hit(point, direction)
+            if hit is None:
+                return None
+            else:
+                remaining = self.cast(length - 1, hit['point'], hit['piece'])
+                if remaining is None:
+                    return None
+                else:
+                    return beginning + remaining
 
 class triangle(surface):
-    def __init__(
-        self, vertices, out_medium, in_medium
-    ):  # convention: outward pointing normal
+    def __init__(self, vertices, out_medium, in_medium,name=None,stored_normal=None):
+        """ Docstring: short one-line description
+
+        Followed by a longer description
+
+        Args:
+        vertices (type): what it's for
+        ...
+
+        Returns (type): ...
+
+        We use Google-style docstrings
+        """
+        # convention: outward pointing normal
         self.vertices = vertices  # should be a list of three vertices
         self.in_medium = in_medium
         self.out_medium = out_medium
+        self.name = name
+        self.stored_normal = stored_normal
 
     def normal(self):
-        p = self.vertices
-        return np.cross(p[1] - p[0], p[2] - p[0])
+        if self.stored_normal is None:
+            p = self.vertices
+            self.stored_normal = np.cross(p[1] - p[0], p[2] - p[0])
+        else:
+            pass
+        return self.stored_normal
 
     def inwards_normals(self):
         p = self.vertices
@@ -246,9 +263,9 @@ class triangle(surface):
         p = self.vertices
         normal = self.normal()
         inwards_normals = self.inwards_normals()
-        if np.dot(normal, direction) == 0:
-            return None
-        if (1 / np.dot(normal, direction)) * np.dot(point - p[0], normal) >= 0:
+        # if np.dot(normal, direction) == 0:
+        #     return None
+        if (np.dot(normal, direction)) * np.dot(point - p[0], normal) >= 0:
             return None
         projection = (
             point
@@ -260,6 +277,8 @@ class triangle(surface):
         return projection
 
     def media(self, direction):
+        # FIXME: ...
+        # TODO: ...
         # returns list of the medium the incident ray is in before it strikes the triangle followed by the medium on the other side of the triangle
         normal = self.normal()
         output = [None, None]
@@ -294,9 +313,9 @@ class triangle(surface):
         out_attenuation = out_medium.attenuation
         x = random.uniform(0, 1)
         if x < out_attenuation / (out_attenuation + in_attenuation):
-            return out_medium.reflection_sample(normal)
+            return in_medium.reflection_sample(normal)
         else:
-            return in_medium.reflection_sample(-normal)
+            return out_medium.reflection_sample(-normal)
 
     # def interact(self,photon,direction):
     # 	media = self.media(direction)
@@ -312,14 +331,14 @@ class path:
         raise Exception("Not defined.")
 
 
-class hit_list_against_composite_surface(list, path):
-    def __init__(self, *incidences):
-        super().__init__(incidences)
-        self.points = list(incidence.get("point") for incidence in self)
-        self.pieces = list(incidence.get("piece") for incidence in self)
+# class hit_list_against_composite_surface(list, path):
+#     def __init__(self, *incidences):
+#         super().__init__(incidences)
+#         self.points = list(incidence.get("point") for incidence in self)
+#         self.pieces = list(incidence.get("piece") for incidence in self)
 
-    def __add__(self, other):
-        return hit_list_against_composite_surface(*(self + other))
+#     def __add__(self, other):
+#         return hit_list_against_composite_surface(*(self + other))
 
 
 # ---------------------------------------------------------------------------
