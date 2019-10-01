@@ -24,16 +24,148 @@ def exists(thing):
 # ---------------------------------------------------------------------------
 
 
+def bernoulli():
+    return random.uniform(0, 1)
+
+
 def monte_carlo(ppf):
-    x = random.uniform(0, 1)
+    x = bernoulli()
     return ppf(x)
 
 
 def normal_ppf(m, s):
     def helper(x):
         return norm.ppf(x, m, s)
-
     return helper
+
+
+# ---------------------------------------------------------------------------
+
+
+def normalize(direction):
+    return direction/np.linalg.norm(direction)
+
+
+def random_vector():
+    return np.array([bernoulli(), bernoulli(), bernoulli()])
+
+
+def extend_to_O(direction):
+    direction = normalize(direction)
+    #could do a 'while True try' thing here
+    M = np.array([direction, random_vector(), random_vector()]).transpose()
+    q, r = np.linalg.qr(M)
+    return r.item(0)*np.dot(q,np.array([[0,0,1],[0,1,0],[1,0,0]]))
+
+
+# ---------------------------------------------------------------------------
+
+
+class sampler:
+    def __init__(self):
+        pass
+
+    def normalized_sample(self):
+        raise Exception('Undefined.')
+
+    def density(self, sample):
+        raise Exception('Undefined.')
+
+    def sample(self,direction = np.array([0,0,1])):
+        normalized_sample = self.normalized_sample()
+        return np.dot(extend_to_O(direction), normalized_sample)
+
+
+
+class uniform_sphere(sampler):
+    def sample(self,normal = 'irrelevant'):
+        def ppf_theta(t):
+            return math.acos(1-2*t)
+        def ppf_phi(t):
+            return 2*math.pi*t
+        theta = monte_carlo(ppf_theta)
+        phi = monte_carlo(ppf_phi)
+        return np.array([math.sin(theta)*math.cos(phi), math.sin(theta)*math.sin(phi), math.cos(theta)])
+
+    def density(self,sample):
+        return 1/(4*math.pi)
+
+    def infinitesimal(self):
+        return 'solid_angle_element'
+
+
+#the hemisphere is understood to be the upper half sphere (i.e. x^2+y^2+z^2=1, z>0)
+class uniform_hemisphere(sampler):
+    def normalized_sample(self):
+        def ppf_theta(t):
+            return math.acos(1-t)
+        def ppf_phi(t):
+            return 2*math.pi*t
+        theta = monte_carlo(ppf_theta)
+        phi = monte_carlo(ppf_phi)
+        return np.array([math.sin(theta)*math.cos(phi), math.sin(theta)*math.sin(phi), math.cos(theta)])
+
+    def density(self,sample):
+        return 1/(2*math.pi)
+
+    def infinitesimal(self):
+        return 'solid_angle_element'
+
+
+#The ellipticity parameter is set implicitly to 0 here; normal is assumed to be (0,0,1); kappa is positive, and the concentration of the distribution at the normal increases with kappa
+class Kent_sphere(sampler):
+    def __init__(self,kappa):
+        self.kappa = kappa
+
+    def normalized_sample(self):
+        def ppf_phi(t):
+            return 2*math.pi*t
+        def ppf_u(t): #u = cos(theta)
+            return 1+(1/self.kappa)*math.log(t+(1-t)*math.exp(-2*self.kappa))
+        phi = monte_carlo(ppf_phi)
+        u = monte_carlo(ppf_u)
+        return np.array([math.sqrt(1-u**2)*math.cos(phi), math.sqrt(1-u**2)*math.sin(phi), u])
+
+    def density(self,sample):
+        return math.exp(self.kappa*np.array.dot(sample,np.array([0,0,1])))*self.kappa/(4*math.pi*math.sinh(self.kappa))
+
+    def infinitesimal(self):
+        return 'solid_angle_element'
+
+
+#the hemisphere is understood to be the upper half sphere (i.e. x^2+y^2+z^2=1, z>0). The parameterization is by projeciton to the horizontal tangent plane; the Jacobian is z^3.
+# class inverse_cube_hemisphere(sampler):
+#     def __init__(self,sigma):
+#         self.kappa = kappa
+
+#     def resample(self,direction):
+#         x = np.dot(direction,np.array([1,0,0]))
+#         y = np.dot(direction,np.array([0,1,0]))
+#         z = np.dot(direction,np.array([0,0,1]))
+#         project = np.array([x/z,y/z])
+#         helper = normal_ppf(0,sigma)
+#         project = project + np.array([monte_carlo(helper), monte_carlo(helper)])
+#         a = #too computationally intensive
+
+#     def density(self,direction,sample):
+
+
+#     def infinitesimal(self):
+#         return 'solid_angle_element'
+
+
+
+
+
+# ---------------------------------------------------------------------------
+
+# class state_space:
+#     def __init__(self,dimension,):
+#         pass
+
+
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +193,7 @@ class bounce_rule:
 
 
 class white_Lambert(bounce_rule):
-    def __init__(self, attenuation=0, sampling_sigma=0.5):
+    def __init__(self, attenuation=0, sampling_sigma=1):
         self.attenuation = attenuation
         self.sampling_sigma = sampling_sigma
 
@@ -94,11 +226,15 @@ class white_Lambert(bounce_rule):
 
     # takes a sample of a ray emanating from the surface; distribution is not related to the physical reflection_density above
     def reflection_sample(self, normal):
+        # count = 0#FIXME
         while True:
+            # print('?')
+            # count = count + 1#FIXME
             output = spherical_normal_resampler().resample(
                 normal, 0, self.sampling_sigma
             )
             if np.dot(output, normal) > 0:
+                # print(count)#FIXME
                 return output
 
 
@@ -121,6 +257,7 @@ class resampler:
 class spherical_normal_resampler:
     def __init__(self):
         pass
+
 
     def resample(self, direction, m, s):
         ppf = normal_ppf(m, s)
@@ -175,13 +312,13 @@ class surface(item):
 
 
 # may want to change this so it inherits from set,surface
-class composite_surface(surface):
-    def __init__(self, pieces):
-        self.pieces = pieces  # an iterable of pieces composing our surface
+class composite_surface(set,surface):
+    # def __init__(self, pieces):
+    #     self.pieces = pieces  # an iterable of pieces composing our surface
 
     def hit(self, point, direction):
         min_distance = math.inf
-        for piece in self.pieces:
+        for piece in self:
             projection = piece.hit(point, direction)
             if exists(projection):
                 distance = np.linalg.norm(projection - point)
@@ -190,6 +327,7 @@ class composite_surface(surface):
                     closest_piece = piece
                     closest_projection = projection
         try:
+            # print(np.linalg.norm(point-closest_projection))#FIXME
             return {"point": closest_projection, "piece": closest_piece}
         except Exception:
             return None
@@ -206,13 +344,13 @@ class composite_surface(surface):
 
     def cast(self, length, point, piece):
         beginning = [{'point':point, 'piece':piece}]
-        print(point,piece.name)#FIXME
+        # print(point,piece.name)#FIXME
         if length == 0:
             return beginning
         else:
             direction = piece.choose_direction()
-            print(direction)
-            hit = self.hit(point, direction)
+            # print(direction)#FIXME
+            hit = composite_surface(self-{piece}).hit(point, direction)
             if hit is None:
                 return None
             else:
@@ -246,7 +384,8 @@ class triangle(surface):
     def normal(self):
         if self.stored_normal is None:
             p = self.vertices
-            self.stored_normal = np.cross(p[1] - p[0], p[2] - p[0])
+            helper = np.cross(p[1] - p[0], p[2] - p[0])
+            self.stored_normal = helper/np.linalg.norm(helper)
         else:
             pass
         return self.stored_normal
