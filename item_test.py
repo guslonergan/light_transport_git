@@ -43,7 +43,10 @@ class item_test(unittest.TestCase):
 
 		shift = np.array([-50,-50,-50])
 
-		white_Lambert = item.white_Lambert_in_air()
+		# white_Lambert = item.white_Lambert_in_air()
+		white_Lambert = item.boundary(item.uniform_hemisphere(),item.Kent_sphere(1),item.Lambert)
+
+
 		# air = item.air()
 
 		# T1 = item.triangle( [x,y,z], air, white_Lambert, 'T1')
@@ -119,6 +122,10 @@ y = x.test_cast()
 # Kent_sphere = item.Kent_sphere(10000)
 # print('{} is approximately [0,0,1]'.format(Kent_sphere.normalized_sample()))
 # print(item.extend_to_O(np.array([0,0,1])))
+
+# white = item.RGB(1,1,1)
+# print(white.sample())
+# print(white.likelihood('R'))
 
 # ---------------------------------------------------------------------------
 
