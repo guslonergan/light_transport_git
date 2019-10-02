@@ -58,6 +58,10 @@ def extend_to_O(direction):
     return r.item(0)*np.dot(q,np.array([[0,0,1],[0,1,0],[1,0,0]]))
 
 
+def transport_to(direction, generated_vector):
+    return np.dot(extend_to_O(direction), generated_vector)
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -65,16 +69,11 @@ class sampler:
     def __init__(self):
         pass
 
-    def normalized_sample(self):
+    def sample(self):
         raise Exception('Undefined.')
 
     def density(self, sample):
         raise Exception('Undefined.')
-
-    def sample(self,direction = np.array([0,0,1])):
-        normalized_sample = self.normalized_sample()
-        return np.dot(extend_to_O(direction), normalized_sample)
-
 
 
 class uniform_sphere(sampler):
@@ -96,7 +95,7 @@ class uniform_sphere(sampler):
 
 #the hemisphere is understood to be the upper half sphere (i.e. x^2+y^2+z^2=1, z>0)
 class uniform_hemisphere(sampler):
-    def normalized_sample(self):
+    def sample(self):
         def ppf_theta(t):
             return math.acos(1-t)
         def ppf_phi(t):
@@ -117,7 +116,7 @@ class Kent_sphere(sampler):
     def __init__(self,kappa):
         self.kappa = kappa
 
-    def normalized_sample(self):
+    def sample(self):
         def ppf_phi(t):
             return 2*math.pi*t
         def ppf_u(t): #u = cos(theta)
@@ -154,20 +153,6 @@ class Kent_sphere(sampler):
 #         return 'solid_angle_element'
 
 
-
-
-
-# ---------------------------------------------------------------------------
-
-# class state_space:
-#     def __init__(self,dimension,):
-#         pass
-
-
-
-
-
-
 # ---------------------------------------------------------------------------
 
 
@@ -177,114 +162,50 @@ class beam:
 
 
 class simple_beam(beam):
-    def __init__(self, color, intensity):
+    def __init__(self, color, direction):
         self.color = color
-
-
-# ---------------------------------------------------------------------------
-
-# the value 'attenuation' called for is exp(-k) where k is the physical attenuation coefficient
-class bounce_rule:
-    def __init__(self, attenuation):
-        raise Exception("Undefined.")
-
-    def density(self, args):
-        raise Exception("Undefined.")
-
-
-class white_Lambert(bounce_rule):
-    def __init__(self, attenuation=0, sampling_sigma=1):
-        self.attenuation = attenuation
-        self.sampling_sigma = sampling_sigma
-
-    def resample(self):
-        pass
-
-    def reflection_density(
-        self,
-        normal,
-        incident_beam,
-        incident_direction,
-        reflected_beam,
-        reflected_direction,
-    ):
-        # for other types of material there is also a transmission density
-        if (
-            incident_beam.color == reflected_beam.color
-            and np.dot(incident_direction, normal) < 0
-            and np.dot(reflected_direction, normal) > 0
-        ):
-            # return np.dot(normal,incident_beam)*(1/np.dot(normal,normal))*(1/np.linalg.norm(incident_direction))*(1/np.linalg.norm(reflected_direction))*np.dot(normal,reflected_direction)*4
-            return (
-                -np.dot(normal, incident_direction)
-                * (1 / np.linalg.norm(normal))
-                * (1 / np.linalg.norm(incident_direction))
-                * (1 / math.pi)
-            )
-        else:
-            return 0
-
-    # takes a sample of a ray emanating from the surface; distribution is not related to the physical reflection_density above
-    def reflection_sample(self, normal):
-        # count = 0#FIXME
-        while True:
-            # print('?')
-            # count = count + 1#FIXME
-            output = spherical_normal_resampler().resample(
-                normal, 0, self.sampling_sigma
-            )
-            if np.dot(output, normal) > 0:
-                # print(count)#FIXME
-                return output
-
-
-class air(bounce_rule):
-    def __init__(self, attenuation=1):
-        self.attenuation = attenuation
+        self.direction = direction
 
 
 # ---------------------------------------------------------------------------
 
 
-class resampler:
-    def __init__(self):
-        raise Exception("Undefined.")
-
-    def resample(self, input):
-        raise Exception("Unefined")
-
-
-class spherical_normal_resampler:
+class medium:
     def __init__(self):
         pass
 
 
-    def resample(self, direction, m, s):
-        ppf = normal_ppf(m, s)
-        y, z = monte_carlo(ppf), monte_carlo(ppf)
-        d = 4 + y ** 2 + z ** 2
-        c = 4 * z / d
-        b = 4 * y / d
-        a = (-4 + y ** 2 + z ** 2) / d
-        direction = direction / np.linalg.norm(direction)
-        v1 = np.array(
-            [random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1)]
-        )
-        v2 = np.array(
-            [random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1)]
-        )
-        q, r = np.linalg.qr(np.array([-direction, v1, v1]).transpose())
-        return np.dot(q, np.array([a, b, c]))
+class boundary(medium):
+    def sample(self, incoming_beam = None):
+        pass
+
+    def resample(self, outgoing_beam):
+        pass
+
+    def physical_likelihood(self, incoming_beam, outgoing_beam):#TODO colors
+        pass
 
 
-# ---------------------------------------------------------------------------
+class white_Lambert_in_air(boundary):
+    def __init__(self,kappa=1):
+        self.kappa = kappa
 
+    def sample(self, incoming_direction = None):
+        outcome = uniform_hemisphere().sample()
+        likelihood = uniform_hemisphere().density(outcome)
+        return {'outcome':outcome,'likelihood':likelihood}
 
-# class interaction_distribution:
+    def resample(self, outgoing_direction):
+        outcome = Kent_sphere(self.kappa).sample()
+        likelihood = Kent_sphere(self.kappa).density(outcome)
+        return {'outcome':transport_to(outgoing_direction,outcome),'likelihood':likelihood}
 
-# def interact(beam,angle,media):#Assume a given photon beam strikes a horizontal boundary in the x-direction at a certain angle. Samples a photon beam+direction for the interaction.
-# 	if media == {'in':'Air','out':'Lambertian_White'}:
-# 		pass
+    def physical_likelihood(self, incoming_direction, outgoing_direction):
+        if incoming_direction.item(2) < 0 and outgoing_direction.item(2) > 0:
+            a = normalize(incoming_direction).item(2)
+            b = normalize(outgoing_direction).item(2)
+            return a*b/math.pi
+
 
 # ---------------------------------------------------------------------------
 
@@ -339,17 +260,14 @@ class composite_surface(set,surface):
         else:
             return None
 
-
-
-
     def cast(self, length, point, piece):
         beginning = [{'point':point, 'piece':piece}]
-        # print(point,piece.name)#FIXME
+        print(point,piece.name)#FIXME
         if length == 0:
             return beginning
         else:
             direction = piece.choose_direction()
-            # print(direction)#FIXME
+            print(direction)#FIXME
             hit = composite_surface(self-{piece}).hit(point, direction)
             if hit is None:
                 return None
@@ -360,8 +278,9 @@ class composite_surface(set,surface):
                 else:
                     return beginning + remaining
 
+
 class triangle(surface):
-    def __init__(self, vertices, out_medium, in_medium,name=None,stored_normal=None):
+    def __init__(self, vertices, boundary_type, name=None, stored_normal=None, stored_O=None):
         """ Docstring: short one-line description
 
         Followed by a longer description
@@ -376,10 +295,10 @@ class triangle(surface):
         """
         # convention: outward pointing normal
         self.vertices = vertices  # should be a list of three vertices
-        self.in_medium = in_medium
-        self.out_medium = out_medium
+        self.boundary_type = boundary_type
         self.name = name
         self.stored_normal = stored_normal
+        self.stored_O = stored_O
 
     def normal(self):
         if self.stored_normal is None:
@@ -389,6 +308,13 @@ class triangle(surface):
         else:
             pass
         return self.stored_normal
+
+    def O(self):
+        if self.stored_O is None:
+            self.stored_O = extend_to_O(self.normal())
+        else:
+            pass
+        return self.stored_O
 
     def inwards_normals(self):
         p = self.vertices
@@ -415,22 +341,10 @@ class triangle(surface):
                 return None
         return projection
 
-    def media(self, direction):
-        # FIXME: ...
-        # TODO: ...
-        # returns list of the medium the incident ray is in before it strikes the triangle followed by the medium on the other side of the triangle
-        normal = self.normal()
-        output = [None, None]
-        index = int(np.dot(normal, direction) > 0)
-        output[index] = self.out_medium
-        output[1 - index] = self.in_medium
-        return {"in": output[0], "out": output[1]}
-
-    def hit_stats(self, point, direction):
+    def hit_stats(self, point, direction):#DOWITHOUT?
         projection = self.hit(point, direction)
         if exists(projection):
             normal = self.normal()
-            media = self.media(direction)
             incidence = math.acos(
                 abs(np.dot(normal, direction))
                 / (np.linalg.norm(normal) * np.linalg.norm(direction))
@@ -438,23 +352,25 @@ class triangle(surface):
             return {
                 "normal": normal,
                 "point": projection,
-                "media": media,
                 "angle": incidence,
             }
         else:
             return None
 
-    def choose_direction(self):
+    def choose_direction(self):#DOWITHOUT?
         normal = self.normal()
-        in_medium = self.in_medium
-        in_attenuation = in_medium.attenuation
-        out_medium = self.out_medium
-        out_attenuation = out_medium.attenuation
-        x = random.uniform(0, 1)
-        if x < out_attenuation / (out_attenuation + in_attenuation):
-            return in_medium.reflection_sample(normal)
-        else:
-            return out_medium.reflection_sample(-normal)
+        # in_attenuation = in_medium.attenuation
+        # out_attenuation = out_medium.attenuation
+        # x = random.uniform(0, 1)
+        # if x < out_attenuation / (out_attenuation + in_attenuation):
+        #     return in_medium.reflection_sample(normal)
+        # else:
+        #     return out_medium.reflection_sample(-normal)
+        # O = self.O()
+        boundary_type = self.boundary_type
+        return transport_to(normal, boundary_type.sample()['outcome'])
+
+
 
     # def interact(self,photon,direction):
     # 	media = self.media(direction)
@@ -462,7 +378,114 @@ class triangle(surface):
     # 	incidence = math.acos(abs(np.dot(normal,direction))/(np.linalg.norm(normal)*np.linalg.norm(direction)))
 
 
+
+
+
+
 # ---------------------------------------------------------------------------
+
+
+
+# JUNK
+
+
+
+#DOWITHOUT
+# class resampler:
+#     def __init__(self):
+#         raise Exception("Undefined.")
+
+#     def resample(self, input):
+#         raise Exception("Unefined")
+
+
+# class spherical_normal_resampler:
+#     def __init__(self):
+#         pass
+
+
+#     def resample(self, direction, m, s):
+#         ppf = normal_ppf(m, s)
+#         y, z = monte_carlo(ppf), monte_carlo(ppf)
+#         d = 4 + y ** 2 + z ** 2
+#         c = 4 * z / d
+#         b = 4 * y / d
+#         a = (-4 + y ** 2 + z ** 2) / d
+#         direction = direction / np.linalg.norm(direction)
+#         v1 = np.array(
+#             [random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1)]
+#         )
+#         v2 = np.array(
+#             [random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1)]
+#         )
+#         q, r = np.linalg.qr(np.array([-direction, v1, v1]).transpose())
+#         return np.dot(q, np.array([a, b, c]))
+
+# ---------------------------------------------------------------------------
+
+#DOWITHOUT
+# the value 'attenuation' called for is exp(-k) where k is the physical attenuation coefficient
+# class bounce_rule:
+#     def __init__(self, attenuation):
+#         raise Exception("Undefined.")
+
+#     def density(self, args):
+#         raise Exception("Undefined.")
+
+
+# class white_Lambert(bounce_rule):
+#     def __init__(self, attenuation=0, sampling_sigma=1):
+#         self.attenuation = attenuation
+#         self.sampling_sigma = sampling_sigma
+
+#     def resample(self):
+#         pass
+
+#     def reflection_density(
+#         self,
+#         normal,
+#         incident_beam,
+#         incident_direction,
+#         reflected_beam,
+#         reflected_direction,
+#     ):
+#         # for other types of material there is also a transmission density
+#         if (
+#             incident_beam.color == reflected_beam.color
+#             and np.dot(incident_direction, normal) < 0
+#             and np.dot(reflected_direction, normal) > 0
+#         ):
+#             # return np.dot(normal,incident_beam)*(1/np.dot(normal,normal))*(1/np.linalg.norm(incident_direction))*(1/np.linalg.norm(reflected_direction))*np.dot(normal,reflected_direction)*4
+#             return (
+#                 -np.dot(normal, incident_direction)
+#                 * (1 / np.linalg.norm(normal))
+#                 * (1 / np.linalg.norm(incident_direction))
+#                 * (1 / math.pi)
+#             )
+#         else:
+#             return 0
+
+#     # takes a sample of a ray emanating from the surface; distribution is not related to the physical reflection_density above
+#     def reflection_sample(self, normal):
+#         # count = 0#FIXME
+#         while True:
+#             # print('?')
+#             # count = count + 1#FIXME
+#             output = spherical_normal_resampler().resample(
+#                 normal, 0, self.sampling_sigma
+#             )
+#             if np.dot(output, normal) > 0:
+#                 # print(count)#FIXME
+#                 return output
+
+
+# class air(bounce_rule):
+#     def __init__(self, attenuation=1):
+#         self.attenuation = attenuation
+
+
+# ---------------------------------------------------------------------------
+
 
 
 class path:

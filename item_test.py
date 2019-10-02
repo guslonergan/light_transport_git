@@ -43,37 +43,52 @@ class item_test(unittest.TestCase):
 
 		shift = np.array([-50,-50,-50])
 
-		white_Lambert = item.white_Lambert()
-		air = item.air()
+		white_Lambert = item.white_Lambert_in_air()
+		# air = item.air()
 
-		T1 = item.triangle( [x,y,z], air, white_Lambert, 'T1')
-		T2 = item.triangle( [x,o,y], air, white_Lambert, 'T2')
-		T3 = item.triangle( [y,o,z], air, white_Lambert, 'T3')
-		T4 = item.triangle( [z,o,x], air, white_Lambert, 'T4')
+		# T1 = item.triangle( [x,y,z], air, white_Lambert, 'T1')
+		# T2 = item.triangle( [x,o,y], air, white_Lambert, 'T2')
+		# T3 = item.triangle( [y,o,z], air, white_Lambert, 'T3')
+		# T4 = item.triangle( [z,o,x], air, white_Lambert, 'T4')
 
-		C1 = item.triangle( [o-50,a-50,b-50], air, white_Lambert, 'C1')
-		C2 = item.triangle( [a-50,a+b-50,b-50], air, white_Lambert, 'C2')
-		C3 = item.triangle( [o-50,c-50,a-50], air, white_Lambert, 'C3')
-		C4 = item.triangle( [a-50,c-50,a+c-50], air, white_Lambert, 'C4')
-		C5 = item.triangle( [o-50,b-50,c-50], air, white_Lambert, 'C5')
-		C6 = item.triangle( [c-50,b-50,b+c-50], air, white_Lambert, 'C6')
-		C7 = item.triangle( [a-50,a+c-50,a+b-50], air, white_Lambert, 'C7')
-		C8 = item.triangle( [a+b-50,a+c-50,a+b+c-50], air, white_Lambert, 'C8')
-		C9 = item.triangle( [b-50,a+b-50,b+c-50], air, white_Lambert, 'C9')
-		C10 = item.triangle( [b+c-50,a+b-50,a+b+c-50], air, white_Lambert, 'C10')
-		C11 = item.triangle( [c-50,b+c-50,a+c-50], air, white_Lambert, 'C11')
-		C12 = item.triangle( [a+c-50,b+c-50,a+b+c-50], air, white_Lambert, 'C12')
+		# C1 = item.triangle( [o-50,a-50,b-50], air, white_Lambert, 'C1')
+		# C2 = item.triangle( [a-50,a+b-50,b-50], air, white_Lambert, 'C2')
+		# C3 = item.triangle( [o-50,c-50,a-50], air, white_Lambert, 'C3')
+		# C4 = item.triangle( [a-50,c-50,a+c-50], air, white_Lambert, 'C4')
+		# C5 = item.triangle( [o-50,b-50,c-50], air, white_Lambert, 'C5')
+		# C6 = item.triangle( [c-50,b-50,b+c-50], air, white_Lambert, 'C6')
+		# C7 = item.triangle( [a-50,a+c-50,a+b-50], air, white_Lambert, 'C7')
+		# C8 = item.triangle( [a+b-50,a+c-50,a+b+c-50], air, white_Lambert, 'C8')
+		# C9 = item.triangle( [b-50,a+b-50,b+c-50], air, white_Lambert, 'C9')
+		# C10 = item.triangle( [b+c-50,a+b-50,a+b+c-50], air, white_Lambert, 'C10')
+		# C11 = item.triangle( [c-50,b+c-50,a+c-50], air, white_Lambert, 'C11')
+		# C12 = item.triangle( [a+c-50,b+c-50,a+b+c-50], air, white_Lambert, 'C12')
+
+		T1 = item.triangle( [x,y,z], white_Lambert, 'T1')
+		T2 = item.triangle( [x,o,y], white_Lambert, 'T2')
+		T3 = item.triangle( [y,o,z], white_Lambert, 'T3')
+		T4 = item.triangle( [z,o,x], white_Lambert, 'T4')
+
+		C1 = item.triangle( [o-50,a-50,b-50], white_Lambert, 'C1')
+		C2 = item.triangle( [a-50,a+b-50,b-50], white_Lambert, 'C2')
+		C3 = item.triangle( [o-50,c-50,a-50], white_Lambert, 'C3')
+		C4 = item.triangle( [a-50,c-50,a+c-50], white_Lambert, 'C4')
+		C5 = item.triangle( [o-50,b-50,c-50], white_Lambert, 'C5')
+		C6 = item.triangle( [c-50,b-50,b+c-50], white_Lambert, 'C6')
+		C7 = item.triangle( [a-50,a+c-50,a+b-50], white_Lambert, 'C7')
+		C8 = item.triangle( [a+b-50,a+c-50,a+b+c-50], white_Lambert, 'C8')
+		C9 = item.triangle( [b-50,a+b-50,b+c-50], white_Lambert, 'C9')
+		C10 = item.triangle( [b+c-50,a+b-50,a+b+c-50], white_Lambert, 'C10')
+		C11 = item.triangle( [c-50,b+c-50,a+c-50], white_Lambert, 'C11')
+		C12 = item.triangle( [a+c-50,b+c-50,a+b+c-50], white_Lambert, 'C12')
 
 		S1 = item.composite_surface({T1,T2,T3,T4,C1,C2,C3,C4,C5,C6,C7,C8,C9,C10,C11,C12})
 
 		point,piece = np.array([0,0,-50]),C1
 		S1.cast(20,point,piece)
 
-		print(C10.normal())
-		print(white_Lambert.reflection_sample(C10.normal()))
-
-# x = item_test()
-# y = x.test_cast()
+x = item_test()
+y = x.test_cast()
 
 
 # ---------------------------------------------------------------------------
