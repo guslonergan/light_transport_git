@@ -41,6 +41,7 @@ def normal_ppf(m, s):
 
 # LINEAR ALGEBRA STUFF---------------------------------------------------------------------------
 
+# class unit_vector
 
 def normalize(direction):
     return direction/np.linalg.norm(direction)
@@ -205,20 +206,6 @@ class RGB(sampler):
 
 #     def infinitesimal(self):
 #         return 'solid_angle_element'
-
-
-# ---------------------------------------------------------------------------
-
-
-# class beam:
-#     def __init__(self):
-#         raise Exception("Undefined.")
-
-
-# class simple_beam(beam):
-#     def __init__(self, color, direction):
-#         self.color = color
-#         self.direction = direction
 
 
 # ---------------------------------------------------------------------------
@@ -538,7 +525,7 @@ class bounce_beam:
 
     def forwards_sampling_likelihood(self):
         if self.stored_forwards_sampling_likelihood == None:
-            self.stored_forwards_sampling_likelihood = 1
+            self.stored_forwards_sampling_likelihood = 1 #FIXME
 
 
 

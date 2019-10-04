@@ -63,13 +63,16 @@ class item_test(unittest.TestCase):
 
 		S1 = item.composite_surface({T1,T2,T3,T4,C1,C2,C3,C4,C5,C6,C7,C8,C9,C10,C11,C12})
 
-		point,piece = np.array([0,0,-50]),C1
-		S1.print_cast(20,point,piece)
-
 		# point,piece = np.array([0,0,-50]),C1
-		# x = S1.join(0,point,piece,1,point,piece)
-		# print(list(entry['piece'].name for entry in x))
+		# S1.print_cast(20,point,piece)
 
+		point,piece = np.array([0,0,-50]),C1
+		x = None
+		while x is None:
+			x = S1.join(1,point,piece,1,point,piece)
+		# print(list(entry['piece'].name for entry in x))
+		# y = S1.convert_to_bounce_beam_list('absorbed', x, 'emitted', 'B')
+		y = S1.convert_to_bounce_beam_list('emitted', x, 'absorbed', 'B')
 
 
 

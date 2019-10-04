@@ -266,7 +266,7 @@ class Lambertian_likelihood:
         else:
             b = 0
 
-        return color.likelihood(beam_color)*a*b/math.pi
+        return self.color.likelihood(beam_color)*a*b/math.pi
 
 
 
@@ -358,7 +358,16 @@ class composite_surface(set,surface):
             else:
                 return None
 
-    # def
+    def convert_to_bounce_beam_list(self, incoming_vector, intermediate_hit_list, outgoing_direction, beam_color):
+        l = len(intermediate_hit_list)
+        if l == 1:
+            return bounce_beam(incoming_vector, outgoing_direction, beam_color, intermediate_hit_list[0]['piece'])
+        else:
+            helper = list(bounce_beam(intermediate_hit_list[i]['point'] - intermediate_hit_list[i-1]['point'], normalize(intermediate_hit_list[i+1]['point'] - intermediate_hit_list[i]['point']), beam_color, intermediate_hit_list[i]['piece']) for i in range(1,len(intermediate_hit_list) - 1))
+            return [bounce_beam(incoming_vector, normalize(intermediate_hit_list[1]['point'] - intermediate_hit_list[0]['point']), beam_color, intermediate_hit_list[0]['piece'])] + helper + [bounce_beam(intermediate_hit_list[-1]['point'] - intermediate_hit_list[-2]['point'], outgoing_direction, beam_color, intermediate_hit_list[-1]['piece'])]
+
+        # augmented_path = [{'point':intermediate_hit_list[0]['point'] - incoming_vector, 'piece': None}] + intermediate_hit_list + [{'point':intermediate_hit_list[-1]['point'] + outgoing_direction, 'piece': None}]
+
 
 
 
@@ -444,28 +453,27 @@ class triangle(surface):
 
 
 class bounce_beam:
-    def __init__(self, incoming_vector, outgoing_direction, beam_color, point, piece, physical_likelihood = None, forwards_sampling_likelihood = None, backwards_sampling_likelihood = None):
+    def __init__(self, incoming_vector, outgoing_direction, beam_color, piece, physical_likelihood = None, forwards_sampling_likelihood = None, backwards_sampling_likelihood = None):
         self.incoming_vector = incoming_vector
         self.outgoing_direction = outgoing_direction
         self.beam_color = beam_color
-        self.point = point
         self.piece = piece
         self.physical_likelihood = self.physical_likelihood()
         # self.last_attenuation_factor = last_attenuation_factor
-        self.forwards_sampling_likelihood = forwards_sampling_likelihood()
-        self.backwards_sampling_likelihood = backwards_sampling_likelihood()
+        self.forwards_sampling_likelihood = self.forwards_sampling_likelihood()
+        self.backwards_sampling_likelihood = self.backwards_sampling_likelihood()
 
     def physical_likelihood(self):
         return self.piece.get_physical_likelihood(self.incoming_vector,self.outgoing_direction,self.beam_color)
 
     def forwards_sampling_likelihood(self):
-        if outgoing_direction == 'absorbed':
+        if self.outgoing_direction == 'absorbed':
             return 1#?
         else:
             return self.piece.sampled_direction_likelihood(self.outgoing_direction)
 
     def backwards_sampling_likelihood(self):
-        if incoming_vector == 'emitted':
+        if self.incoming_vector == 'emitted':
             return 1#?
         else:
             return self.piece.sampled_direction_likelihood(-normalize(self.incoming_vector))
