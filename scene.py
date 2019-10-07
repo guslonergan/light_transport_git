@@ -292,7 +292,7 @@ class Boundary(Medium):#TODO: make this work with full spectrum colors and refra
 # ---------------------------------------------------------------------------
 
 
-class EmbeddedPoint:
+class EmbeddedPoint: # TODO consider forcing definition of physical likelihood functions on this level rather than on the level of boundaries; this would allow non-constructible optical properties
     def __init__(self, point, piece):
         self.point = point
         self.piece = piece
@@ -397,66 +397,13 @@ class Surface(Scene):
         return list(Interaction(*pair) for pair in zip(intermediate_hit_list, bouncebeam_list))
 
 
-
-
-
-class Triangle(Scene):
-    def __init__(self, vertices, boundary, name=None, normal=None, inwards_normals=None, orthoframe=None):
-        """ Docstring: short one-line description
-
-        Followed by a longer description
-
-        Args:
-        vertices (type): what it's for
-        ...
-
-        Returns (type): ...
-
-        We use Google-style docstrings
-        """
-        # convention: outward pointing normal
-        self.vertices = vertices  # should be a list of three vertices
-        self.boundary = boundary
-        self.name = name
-        self.normal = self.get_normal()
-        self.orthoframe = self.get_orthoframe()
-        self.inwards_normals = self.get_inwards_normals()
-
-    def get_normal(self):
-        p = self.vertices
-        helper = np.cross(p[1] - p[0], p[2] - p[0])
-        return normalize(helper)
-
+class FlatPiece(Scene):
     def get_orthoframe(self):
         orthoframe = extend_to_O(self.normal)
         return orthoframe
 
-    def get_inwards_normals(self):
-        p = self.vertices
-        normal = self.normal
-        in_0 = np.cross(normal, p[1] - p[0])
-        in_1 = np.cross(normal, p[2] - p[1])
-        in_2 = np.cross(normal, p[0] - p[2])
-        return [in_0, in_1, in_2]
-
-    def hit(self, embeddedpoint, direction):#TODO all below
-        if self is embeddedpoint.piece:
-            return None
-        else:
-            p = self.vertices
-            normal = self.normal
-            inwards_normals = self.inwards_normals
-            point = embeddedpoint.point
-            if (np.dot(normal, direction)) * np.dot(point - p[0], normal) >= 0:
-                return None
-            projection = (
-                point
-                - (1 / np.dot(normal, direction)) * np.dot(point - p[0], normal) * direction
-            )
-            for i in range(3):
-                if np.dot(inwards_normals[i], projection - p[i]) < 0:
-                    return None
-            return EmbeddedPoint(projection, self)
+    def hit(self, embeddedpoint, direction):
+        raise Exception('Undefined.')
 
     def orient(self, vector):
         if vector is 'absorbed' or vector is 'emitted':
@@ -498,7 +445,110 @@ class Triangle(Scene):
         return self.boundary.physicallikelihoodgetter.get(self.bunorient(bouncebeam))
 
 
+
+
+class Triangle(FlatPiece):#TODO should be subclass of 'piece'
+    def __init__(self, vertices, boundary, name=None, normal=None, inwards_normals=None, orthoframe=None):
+        """ Docstring: short one-line description
+
+        Followed by a longer description
+
+        Args:
+        vertices (type): what it's for
+        ...
+
+        Returns (type): ...
+
+        We use Google-style docstrings
+        """
+        # convention: outward pointing normal
+        self.vertices = vertices  # should be a list of three vertices
+        self.boundary = boundary
+        self.name = name
+        self.normal = self.get_normal()
+        self.orthoframe = self.get_orthoframe()
+        self.inwards_normals = self.get_inwards_normals()
+
+    def get_normal(self):
+        p = self.vertices
+        helper = np.cross(p[1] - p[0], p[2] - p[0])
+        return normalize(helper)
+
+    def get_inwards_normals(self):
+        p = self.vertices
+        normal = self.normal
+        in_0 = np.cross(normal, p[1] - p[0])
+        in_1 = np.cross(normal, p[2] - p[1])
+        in_2 = np.cross(normal, p[0] - p[2])
+        return [in_0, in_1, in_2]
+
+    def hit(self, embeddedpoint, direction):#TODO all below
+        if self is embeddedpoint.piece:
+            return None
+        else:
+            p = self.vertices
+            normal = self.normal
+            inwards_normals = self.inwards_normals
+            point = embeddedpoint.point
+            if (np.dot(normal, direction)) * np.dot(point - p[0], normal) >= 0:
+                return None
+            projection = (
+                point
+                - (1 / np.dot(normal, direction)) * np.dot(point - p[0], normal) * direction
+            )
+            for i in range(3):
+                if np.dot(inwards_normals[i], projection - p[i]) < 0:
+                    return None
+            return EmbeddedPoint(projection, self)
+
+
+class Dirac(FlatPiece):#an insubstantial thing; only useful as either light source or eye
+    def __init__(self, point, boundary, normal, name=None, orthoframe=None):
+        self.point = point
+        self.boundary = boundary
+        self.normal = normal
+        self.orthoframe = self.get_orthoframe()
+
+    def hit(self, embeddedpoint, direction):
+        return None
+
+
+
+
+
+
 # ---------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

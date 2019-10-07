@@ -174,19 +174,17 @@ class Scene_test(unittest.TestCase):
 		for i in range(11):
 			# print(y[i].incoming_vector, x[i].piece.name, y[i].outgoing_direction, y[i].beam_color)
 			self.assertTrue((y[i].outgoing_direction == item.normalize(y[i+1].incoming_vector)).all())
-
-		# for bouncebeam in y:
-		# 	print(S1.get_physical_likelihood(bouncebeam))
-
 		z = S1.convert_to_interaction_list('emitted', x, 'absorbed', 'B')
-		for key in z:
-			print(key.embeddedpoint.piece.name, key.physical_likelihood, key.forwards_sampling_likelihood, key.backwards_sampling_likelihood)
+		# for key in z:
+		# 	print(key.embeddedpoint.piece.name, key.physical_likelihood, key.forwards_sampling_likelihood, key.backwards_sampling_likelihood)
 
 
 
 x = Scene_test()
-y = x.join_test()
-
+x.hit_test()
+x.cast_test()
+x.see_test()
+x.join_test()
 
 # ---------------------------------------------------------------------------
 
