@@ -142,11 +142,18 @@ import random
 
 # ------------------------------------------------------------
 
-x = [1]
-x.reverse()
-print(x)
+# class G:
+#     def __init__(self):
+#         self.numbers = [1,2,3,4,5]
+
+#     def __contains__(self, key):
+#         return key in self.numbers
 
 
+# x = G()
+
+# for key in x:
+#     print(key)
 
 
 
