@@ -192,6 +192,24 @@ class BounceBeam:
         self.beam_color = beam_color
 
 
+class Interaction:
+    def __init__(self, embeddedpoint, bouncebeam):
+        self.embeddedpoint = embeddedpoint
+        self.bouncebeam = bouncebeam
+        self.forwards_sampling_likelihood = self.forwards_sampling_likelihood()
+        self.backwards_sampling_likelihood = self.backwards_sampling_likelihood()
+        self.physical_likelihood = self.physical_likelihood()
+
+    def forwards_sampling_likelihood(self):
+        return self.embeddedpoint.piece.forwards_sampling_likelihood(self.bouncebeam)
+
+    def backwards_sampling_likelihood(self):
+        return self.embeddedpoint.piece.backwards_sampling_likelihood(self.bouncebeam)
+
+    def physical_likelihood(self):
+        return self.embeddedpoint.piece.get_physical_likelihood(self.bouncebeam)
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -205,22 +223,22 @@ class Lambertian(PhysicalLikelihoodGetter):
         self.color = color
 
     def get(self, bouncebeam):
-        if incoming_vector is 'emitted':
+        if bouncebeam.incoming_vector is 'emitted':
             a = 1
-        elif incoming_vector.item(2) < 0:
-            a = - normalize(incoming_vector).item(2)
+        elif bouncebeam.incoming_vector.item(2) < 0:
+            a = - normalize(bouncebeam.incoming_vector).item(2)
         else:
             a = 0
 
-        if outgoing_direction is 'absorbed':
+        if bouncebeam.outgoing_direction is 'absorbed':
             b = 1
             #does a need to change in this instance?
-        elif outgoing_direction.item(2) > 0:
-            b = outgoing_direction.item(2)
+        elif bouncebeam.outgoing_direction.item(2) > 0:
+            b = bouncebeam.outgoing_direction.item(2)
         else:
             b = 0
 
-        return self.color.likelihood(beam_color)*a*b/math.pi
+        return self.color.likelihood(bouncebeam.beam_color)*a*b/math.pi
 
 
 # ---------------------------------------------------------------------------
@@ -374,6 +392,13 @@ class Surface(Scene):
             middle_bouncebeams = list(BounceBeam(intermediate_hit_list[i].point - intermediate_hit_list[i-1].point, normalize(intermediate_hit_list[i+1].point - intermediate_hit_list[i].point), beam_color) for i in range(1, len(intermediate_hit_list) - 1))
             return [BounceBeam(incoming_vector, normalize(intermediate_hit_list[1].point - intermediate_hit_list[0].point), beam_color)] + middle_bouncebeams + [BounceBeam(intermediate_hit_list[-1].point - intermediate_hit_list[-2].point, outgoing_direction, beam_color)]
 
+    def convert_to_interaction_list(self, incoming_vector, intermediate_hit_list, outgoing_direction, beam_color):
+        bouncebeam_list = self.convert_to_bouncebeam_list(incoming_vector, intermediate_hit_list, outgoing_direction, beam_color)
+        return list(Interaction(*pair) for pair in zip(intermediate_hit_list, bouncebeam_list))
+
+
+
+
 
 class Triangle(Scene):
     def __init__(self, vertices, boundary, name=None, normal=None, inwards_normals=None, orthoframe=None):
@@ -458,10 +483,10 @@ class Triangle(Scene):
         return self.boundary.resampled_direction_likelihood_ratio(self.unorient(new_direction), self.unorient(old_direction))
 
     def borient(self, bouncebeam):
-        return BounceBeam(self.orient(bouncebeam.incoming_vector), self.orient(bouncebeam.outgoing_direction, bouncebeam.beam_color))
+        return BounceBeam(self.orient(bouncebeam.incoming_vector), self.orient(bouncebeam.outgoing_direction), bouncebeam.beam_color)
 
     def bunorient(self, bouncebeam):
-        return BounceBeam(self.unorient(bouncebeam.incoming_vector), self.unorient(bouncebeam.outgoing_direction, bouncebeam.beam_color))
+        return BounceBeam(self.unorient(bouncebeam.incoming_vector), self.unorient(bouncebeam.outgoing_direction), bouncebeam.beam_color)
 
     def forwards_sampling_likelihood(self, bouncebeam):
         return self.boundary.forwards_sampling_likelihood(self.bunorient(bouncebeam))

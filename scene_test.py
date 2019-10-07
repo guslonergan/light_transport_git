@@ -122,19 +122,70 @@ class Scene_test(unittest.TestCase):
 		self.assertTrue(S1.see(embeddedpoint5, embeddedpoint1))
 		self.assertFalse(S1.see(embeddedpoint5, embeddedpoint2))
 
+	def join_test(self):
+		x = np.array([100,0,0])
+		y = np.array([0,100,0])
+		z = np.array([0,0,100])
+		o = np.array([0,0,0])
+
+		a = np.array([200,0,0])
+		b = np.array([0,200,0])
+		c = np.array([0,0,200])
+
+		white_Lambert = item.Boundary(item.UniformHemisphere(),item.KentSphere(),item.Lambertian())
+
+		T1 = item.Triangle( [x,y,z], white_Lambert, 'T1')
+		T2 = item.Triangle( [x,o,y], white_Lambert, 'T2')
+		T3 = item.Triangle( [y,o,z], white_Lambert, 'T3')
+		T4 = item.Triangle( [z,o,x], white_Lambert, 'T4')
+
+		C1 = item.Triangle( [o-50,a-50,b-50], white_Lambert, 'C1')
+		C2 = item.Triangle( [a-50,a+b-50,b-50], white_Lambert, 'C2')
+		C3 = item.Triangle( [o-50,c-50,a-50], white_Lambert, 'C3')
+		C4 = item.Triangle( [a-50,c-50,a+c-50], white_Lambert, 'C4')
+		C5 = item.Triangle( [o-50,b-50,c-50], white_Lambert, 'C5')
+		C6 = item.Triangle( [c-50,b-50,b+c-50], white_Lambert, 'C6')
+		C7 = item.Triangle( [a-50,a+c-50,a+b-50], white_Lambert, 'C7')
+		C8 = item.Triangle( [a+b-50,a+c-50,a+b+c-50], white_Lambert, 'C8')
+		C9 = item.Triangle( [b-50,a+b-50,b+c-50], white_Lambert, 'C9')
+		C10 = item.Triangle( [b+c-50,a+b-50,a+b+c-50], white_Lambert, 'C10')
+		C11 = item.Triangle( [c-50,b+c-50,a+c-50], white_Lambert, 'C11')
+		C12 = item.Triangle( [a+c-50,b+c-50,a+b+c-50], white_Lambert, 'C12')
+
+		point1 = np.array([0, 0, -50])
+		point2 = np.array([1, 1, -50])
+		point3 = np.array([33,33,34])
+		point4 = np.array([49, 49, 0])
+
+		S1 = item.Surface({T1,T2,T3,T4,C1,C2,C3,C4,C5,C6,C7,C8,C9,C10,C11,C12})
+
+		embeddedpoint1 = item.EmbeddedPoint(point1, C1)
+		embeddedpoint2 = item.EmbeddedPoint(point2, None)
+		embeddedpoint3 = item.EmbeddedPoint(point3, T1)
+		embeddedpoint4 = item.EmbeddedPoint(point3, None)
+		embeddedpoint5 = item.EmbeddedPoint(point4, T2)
+
 		x = None
 		while x is None:
 			x = S1.join(5,embeddedpoint1,5,embeddedpoint3)
-		print(list(entry.piece.name for entry in x))
 		y = S1.convert_to_bouncebeam_list('emitted', x, 'absorbed', 'B')
-		print(len(x) is len(y))
-		for i in range(len(y)):
-			print(y[i].incoming_vector, x[i].piece.name, y[i].outgoing_direction)
+		self.assertEqual(len(x), 12)
+		self.assertEqual(len(y), 12)
+		for i in range(11):
+			# print(y[i].incoming_vector, x[i].piece.name, y[i].outgoing_direction, y[i].beam_color)
+			self.assertTrue((y[i].outgoing_direction == item.normalize(y[i+1].incoming_vector)).all())
+
+		# for bouncebeam in y:
+		# 	print(S1.get_physical_likelihood(bouncebeam))
+
+		z = S1.convert_to_interaction_list('emitted', x, 'absorbed', 'B')
+		for key in z:
+			print(key.embeddedpoint.piece.name, key.physical_likelihood, key.forwards_sampling_likelihood, key.backwards_sampling_likelihood)
 
 
 
 x = Scene_test()
-y = x.see_test()
+y = x.join_test()
 
 
 # ---------------------------------------------------------------------------

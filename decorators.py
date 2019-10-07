@@ -155,13 +155,22 @@ import random
 # for key in x:
 #     print(key)
 
+# x = 1
+# y = 1
+# z = x - y
+# print(z is 0)
 
 
+x = np.array([0, 0])
+y = np.array([0, 0])
+z = y
+print(x is y)
+print(y is z)
+print((x == y).all())
 
-
-
-
-
+x = 0.0
+y = 0.0
+print(x is y)
 
 
 
