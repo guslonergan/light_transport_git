@@ -2,187 +2,14 @@ import numpy as np
 import math
 from scipy.stats import norm
 from abc import ABC, abstractmethod
-import random
 import logging
+from functions import normalize, extend_to_O, lens_to_hemisphere, hemisphere_to_lens
+from sampler import LensSam as LensSampler
+from sampler import TriangleSam as TriangleSampler
+import random
 
+TriangleSampler = TriangleSampler()
 
-# BASIC PROBABILITY STUFF---------------------------------------------------------------------------
-
-
-def bernoulli():
-    return random.uniform(0, 1)
-
-
-def monte_carlo(ppf):
-    x = bernoulli()
-    return ppf(x)
-
-
-def normal_ppf(m, s):
-    def helper(x):
-        return norm.ppf(x, m, s)
-    return helper
-
-
-# LINEAR ALGEBRA STUFF---------------------------------------------------------------------------
-
-
-def normalize(vector):
-    return vector/np.linalg.norm(vector)
-
-def random_vector():
-    return np.array([bernoulli(), bernoulli(), bernoulli()])
-
-def extend_to_O(direction):
-    direction = normalize(direction)
-    M = np.array([direction, random_vector(), random_vector()]).transpose()
-    q, r = np.linalg.qr(M)
-    return r.item(0)*np.dot(q,np.array([[0,0,1],[0,1,0],[1,0,0]]))
-
-def transport_to(direction, vector):
-    return np.dot(extend_to_O(direction), vector)
-
-def transport_from(direction, vector):#DOWITHOUT?
-    return np.dot(extend_to_O(direction).transpose(), vector)
-
-
-# VARIOUS DISTRIBUTIONS---------------------------------------------------------------------------
-
-
-class Sampler(ABC):
-    @abstractmethod
-    def sample(self):
-        pass
-
-    @abstractmethod
-    def likelihood(self, sample):
-        pass
-
-    def resample(self, old_sample):
-        return self.sample()
-
-    def likelihood_ratio(self, new_sample, old_sample):
-        return self.likelihood(old_sample)/self.likelihood(new_sample)
-
-
-class UniformSphere(Sampler):
-    def sample(self):
-        def ppf_theta(t):
-            return math.acos(1-2*t)
-        def ppf_phi(t):
-            return 2*math.pi*t
-        theta = monte_carlo(ppf_theta)
-        phi = monte_carlo(ppf_phi)
-        return np.array([math.sin(theta)*math.cos(phi), math.sin(theta)*math.sin(phi), math.cos(theta)])
-
-    def likelihood(self,sample):
-        return 1/(4*math.pi)
-
-    def infinitesimal(self):
-        return 'solid_angle_element'
-
-
-#the hemisphere is understood to be the upper half sphere (i.e. x^2+y^2+z^2=1, z>0)
-class UniformHemisphere(Sampler):
-    def sample(self):
-        def ppf_theta(t):
-            return math.acos(1-t)
-        def ppf_phi(t):
-            return 2*math.pi*t
-        theta = monte_carlo(ppf_theta)
-        phi = monte_carlo(ppf_phi)
-        return np.array([math.sin(theta)*math.cos(phi), math.sin(theta)*math.sin(phi), math.cos(theta)])
-
-    def likelihood(self,sample):
-        return 1/(2*math.pi)
-
-    def infinitesimal(self):
-        return 'solid_angle_element'
-
-
-#The ellipticity parameter is set implicitly to 0 here; normal is assumed to be (0,0,1); kappa is positive, and the concentration of the distribution at the normal increases with kappa
-class KentSphere(Sampler):#FIXME: this is designed to be used as a resampler; it will have big problems if used as a sampler; this is a bug
-    def __init__(self,kappa=1):
-        self.kappa = kappa
-
-    def sample(self):
-        def ppf_phi(t):
-            return 2*math.pi*t
-        def ppf_u(t): #u = cos(theta)
-            return 1+(1/self.kappa)*math.log(t+(1-t)*math.exp(-2*self.kappa))
-        phi = monte_carlo(ppf_phi)
-        u = monte_carlo(ppf_u)
-        return np.array([math.sqrt(1-u**2)*math.cos(phi), math.sqrt(1-u**2)*math.sin(phi), u])
-
-    def likelihood(self,sample):
-        sample = normalize(sample)
-        return math.exp(self.kappa*np.array.dot(sample,np.array([0,0,1])))*self.kappa/(4*math.pi*math.sinh(self.kappa))
-
-    def resample(self,old_sample):
-        sample = self.sample()
-        return transport_to(old_sample, sample)
-
-    def likelihood_ratio(self, new_sample, old_sample):
-        return 1
-
-    def infinitesimal(self):
-        return 'solid_angle_element'
-
-
-class RGB(Sampler):
-    def __init__(self,R,G,B):
-        total = R + G + B
-        self.R = R/total
-        self.G = G/total
-        self.B = B/total
-
-    def sample(self):
-        def ppf(t):
-            if t < self.R:
-                return 'R'
-            elif t < self.G + self.R:
-                return 'G'
-            else:
-                return 'B'
-        return monte_carlo(ppf)
-
-    def likelihood(self,sample):
-        if sample is 'R':
-            return self.R
-        elif sample is 'G':
-            return self.G
-        else:
-            return self.B
-
-    def resample(self,thing):
-        return thing
-
-    def likelihood_ratio(self, new_sample, old_sample):
-        return 1
-
-
-#the hemisphere is understood to be the upper half sphere (i.e. x^2+y^2+z^2=1, z>0). The parameterization is by projeciton to the horizontal tangent plane; the Jacobian is z^3.
-# class Inverse_Cube_Hemisphere(Sampler):
-#     def __init__(self,sigma):
-#         self.kappa = kappa
-
-#     def resample(self,direction):
-#         x = np.dot(direction,np.array([1,0,0]))
-#         y = np.dot(direction,np.array([0,1,0]))
-#         z = np.dot(direction,np.array([0,0,1]))
-#         project = np.array([x/z,y/z])
-#         helper = normal_ppf(0,sigma)
-#         project = project + np.array([monte_carlo(helper), monte_carlo(helper)])
-#         a = #too computationally intensive
-
-#     def likelihood(self,direction,sample):
-
-
-#     def infinitesimal(self):
-#         return 'solid_angle_element'
-
-
-# ---------------------------------------------------------------------------
 
 
 class BounceBeam:
@@ -196,35 +23,39 @@ class Interaction:
     def __init__(self, embeddedpoint, bouncebeam):
         self.embeddedpoint = embeddedpoint
         self.bouncebeam = bouncebeam
-        self.forwards_sampling_likelihood = self.forwards_sampling_likelihood()
-        self.backwards_sampling_likelihood = self.backwards_sampling_likelihood()
-        self.physical_likelihood = self.physical_likelihood()
+        self.forwards_sampling_likelihood = self.get_forwards_sampling_likelihood()
+        self.backwards_sampling_likelihood = self.get_backwards_sampling_likelihood()
+        self.physical_likelihood = self.get_physical_likelihood()
 
-    def forwards_sampling_likelihood(self):
+    def get_forwards_sampling_likelihood(self):
         return self.embeddedpoint.piece.forwards_sampling_likelihood(self.bouncebeam)
 
-    def backwards_sampling_likelihood(self):
+    def get_backwards_sampling_likelihood(self):
         return self.embeddedpoint.piece.backwards_sampling_likelihood(self.bouncebeam)
 
-    def physical_likelihood(self):
+    def get_physical_likelihood(self):
         return self.embeddedpoint.piece.get_physical_likelihood(self.bouncebeam)
 
 
 # ---------------------------------------------------------------------------
 
 
+from sampler import RGB
+
 class PhysicalLikelihoodGetter(ABC):
     @abstractmethod
     def get(self, bouncebeam):
         pass
 
+
 class Lambertian(PhysicalLikelihoodGetter):
-    def __init__(self, color = RGB(1,1,1)):
+    def __init__(self, color = RGB(), emittance = 0):
         self.color = color
+        self.emittance = emittance
 
     def get(self, bouncebeam):
         if bouncebeam.incoming_vector is 'emitted':
-            a = 1
+            a = self.emittance
         elif bouncebeam.incoming_vector.item(2) < 0:
             a = - normalize(bouncebeam.incoming_vector).item(2)
         else:
@@ -241,6 +72,38 @@ class Lambertian(PhysicalLikelihoodGetter):
         return self.color.likelihood(bouncebeam.beam_color)*a*b/math.pi
 
 
+class Atomic(PhysicalLikelihoodGetter):
+    def __init__(self, color = RGB(1,1,1), emittance = 0):
+        self.color = color
+        self.emittance = emittance
+
+    def get(self, bouncebeam):
+        if bouncebeam.incoming_vector is 'emitted':
+            a = self.emittance
+        else:
+            a = 1
+
+        if bouncebeam.outgoing_direction is 'absorbed':
+            b = 1
+            #does a need to change in this instance?
+        else:
+            b = 1/(4*math.pi)
+
+        return self.color.likelihood(bouncebeam.beam_color)*a*b
+
+
+class Eyeball(PhysicalLikelihoodGetter):
+    def __init__(self):
+        self.emittance = 0
+
+    def get(self, bouncebeam):
+        if bouncebeam.outgoing_direction is 'absorbed':
+            return 1
+
+        else:
+            raise Exception("This shouldn't happen in the current implementation... the eye has no physical extent and cannot be bounced off at the moment.")
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -251,12 +114,22 @@ class Medium:
 
 #colors are only sampled or resampled at emitters
 class Boundary(Medium):#TODO: make this work with full spectrum colors and refraction/attenuation indices
-    def __init__(self, direction_sampler, direction_resampler, physicallikelihoodgetter, emittance=0, is_eye=False):
+    def __init__(self, direction_sampler, direction_resampler, physicallikelihoodgetter, color_sampler=None):
+        #color_sampler only necessary if it's an emitter... which is contained in the physicallikelihoodgetter... rearrange class structure?
         self.direction_sampler = direction_sampler
         self.direction_resampler = direction_resampler
         self.physicallikelihoodgetter = physicallikelihoodgetter
-        self.emittance = emittance
-        self.is_eye = is_eye
+        self.emittance = self.physicallikelihoodgetter.emittance
+        self.color_sampler = color_sampler
+
+    def sample_color(self):
+        return self.color_sampler.sample()
+
+    def sampled_color_likelihood(self, color):
+        return self.color_sampler.likelihood(color)
+
+    def is_eye(self):
+        return False
 
     def sample_direction(self):
         return self.direction_sampler.sample()
@@ -289,6 +162,26 @@ class Boundary(Medium):#TODO: make this work with full spectrum colors and refra
         return self.physicallikelihoodgetter.get(bouncebeam)
 
 
+class Lens(Boundary):
+    def __init__(self, x_field, y_field):# x_field, y_field are dimensions of a lens at unit distance from the eye
+        self.x_field = x_field
+        self.y_field = y_field
+        self.direction_sampler = LensSampler(x_field, y_field)
+        self.direction_resampler = LensSampler(x_field, y_field)
+        self.physicallikelihoodgetter = Eyeball()
+
+    def is_eye(self):
+        return True
+
+    def interpret(self, absorbed_bouncebeam, pixel_number):
+        if absorbed_bouncebeam.outgoing_direction is 'absorbed':
+            incoming_direction = normalize(absorbed_bouncebeam.incoming_vector)
+            (x,y) = hemisphere_to_lens(incoming_direction)
+            x_pixel = math.floor(pixel_number*(0.5 + x/self.x_field))
+            y_pixel = math.floor(pixel_number*(0.5 + y/self.y_field))
+            return (x_pixel, y_pixel, absorbed_bouncebeam.beam_color)
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -312,6 +205,34 @@ class Scene:
 class Surface(Scene):
     def __init__(self, pieces):
         self.pieces = pieces
+        self.emitters = self.get_emitters()
+        self.eye = self.get_eye()
+
+    def get_emitters(self):
+        emitters = []
+        for piece in self.pieces:
+            if piece.boundary.physicallikelihoodgetter.emittance > 0:
+                emitters += [piece]
+        return emitters
+
+    def sample_emitting_point(self):
+        piece = random.choice(self.emitters)
+        return piece.sample_point()
+
+    def sampled_emitting_point_likelihood(self, embeddedpoint):
+        return embeddedpoint.piece.sampled_point_likelihood(embeddedpoint)
+
+    def get_eye(self):
+        eyes = []
+        for piece in self.pieces:
+            if piece.boundary.is_eye():
+                eyes += [piece]
+        if len(eyes) == 0:
+            print('There is no eye to see...')
+            return None
+        elif len(eyes) > 1:
+            print("There are several eyes, I'll use the first I found...")
+        return eyes[0]
 
     def hit(self, embeddedpoint, direction):
         min_distance = math.inf
@@ -396,6 +317,27 @@ class Surface(Scene):
         bouncebeam_list = self.convert_to_bouncebeam_list(incoming_vector, intermediate_hit_list, outgoing_direction, beam_color)
         return list(Interaction(*pair) for pair in zip(intermediate_hit_list, bouncebeam_list))
 
+    def run(self, forwards_length, backwards_length, pixel_number):
+        end_embeddedpoint = self.eye.sample_point()
+        start_embeddedpoint = self.sample_emitting_point()
+        path = self.join(forwards_length, start_embeddedpoint, backwards_length, end_embeddedpoint)
+        if path is None:
+            return None
+        else:
+            beam_color = start_embeddedpoint.piece.boundary.sample_color()
+
+            sampling_likelihood = end_embeddedpoint.piece.sampled_point_likelihood(end_embeddedpoint)
+            sampling_likelihood *= start_embeddedpoint.piece.sampled_point_likelihood(start_embeddedpoint)
+            sampling_likelihood *= start_embeddedpoint.piece.boundary.sampled_color_likelihood(beam_color)
+            physical_likelihood = 1
+            interaction_list = self.convert_to_interaction_list('emitted', path, 'absorbed', beam_color)
+            for interaction in interaction_list:
+                sampling_likelihood *= interaction.forwards_sampling_likelihood
+                physical_likelihood *= interaction.physical_likelihood
+            weight = physical_likelihood/sampling_likelihood
+            absorbed_bouncebeam = interaction_list[-1].bouncebeam
+            return (self.eye.interpret(absorbed_bouncebeam, pixel_number), weight)
+
 
 class FlatPiece(Scene):
     def get_orthoframe(self):
@@ -416,6 +358,12 @@ class FlatPiece(Scene):
             return vector
         else:
             return np.dot(self.orthoframe.transpose(), vector)
+
+    def sample_point(self):
+        raise Exception('Undefined')
+
+    def sampled_point_likelihood(self):
+        raise Exception('Undefined')
 
     def sample_direction(self):
         return self.orient(self.boundary.sample_direction())
@@ -445,9 +393,7 @@ class FlatPiece(Scene):
         return self.boundary.physicallikelihoodgetter.get(self.bunorient(bouncebeam))
 
 
-
-
-class Triangle(FlatPiece):#TODO should be subclass of 'piece'
+class Triangle(FlatPiece):
     def __init__(self, vertices, boundary, name=None, normal=None, inwards_normals=None, orthoframe=None):
         """ Docstring: short one-line description
 
@@ -468,6 +414,7 @@ class Triangle(FlatPiece):#TODO should be subclass of 'piece'
         self.normal = self.get_normal()
         self.orthoframe = self.get_orthoframe()
         self.inwards_normals = self.get_inwards_normals()
+        self.area = self.get_area()
 
     def get_normal(self):
         p = self.vertices
@@ -492,34 +439,115 @@ class Triangle(FlatPiece):#TODO should be subclass of 'piece'
             point = embeddedpoint.point
             if (np.dot(normal, direction)) * np.dot(point - p[0], normal) >= 0:
                 return None
-            projection = (
-                point
-                - (1 / np.dot(normal, direction)) * np.dot(point - p[0], normal) * direction
-            )
+            projection = (point-(1/np.dot(normal, direction))*np.dot(point-p[0], normal)*direction)
             for i in range(3):
                 if np.dot(inwards_normals[i], projection - p[i]) < 0:
                     return None
             return EmbeddedPoint(projection, self)
 
+    def get_area(self):
+        p = self.vertices
+        return np.linalg.norm(np.cross(p[1]-p[0], p[2]-p[0]))
 
-class Dirac(FlatPiece):#an insubstantial thing; only useful as either light source or eye
-    def __init__(self, point, boundary, normal, name=None, orthoframe=None):
+    def sample_point(self):
+        (s,t) = TriangleSampler.sample()
+        p = self.vertices
+        point = (1-s-t)*p[0] + s*p[1] + t*p[2]
+        return EmbeddedPoint(point, self)
+
+    def sampled_point_likelihood(self, embeddedpoint):
+        if embeddedpoint.piece is self:
+            return 1/self.area
+        else:
+            raise Exception("You shouldn't have tried to compute that likelihood... it's af a point which is not embedded in this triangle.")
+
+
+class Dirac(FlatPiece):#an insubstantial point; only useful as either light source or eye
+    def __init__(self, point, boundary, normal=np.array([1,0,0]), name=None, orthoframe=None):
         self.point = point
         self.boundary = boundary
         self.normal = normal
+        self.name = name
         self.orthoframe = self.get_orthoframe()
 
     def hit(self, embeddedpoint, direction):
         return None
 
+    def sample_point(self):
+        return EmbeddedPoint(self.point, self)
+
+    def sampled_point_likelihood(self, embeddedpoint):
+        if embeddedpoint.piece is self and (embeddedpoint.point == self.point).all():
+            return 1
+        else:
+            raise Exception('Something went wrong, getting the likelihood of a remote point...')
 
 
+class DiracEye(Dirac):
+    def __init__(self, point, normal, up, x_field = 5, y_field = 5, name=None, orthoframe=None):
+        self.point = point
+        self.normal = normalize(normal)
+        self.name = name
+        self.up = normalize(up)
+        self.x_field = x_field
+        self.y_field = y_field
+        self.boundary = Lens(self.x_field, self.y_field)
+        self.orthoframe = self.get_orthoframe()
+
+    def get_orthoframe(self):
+        cross = np.cross(self.normal, self.up)
+        return np.array([self.up, cross, self.normal]).transpose()
+
+    def interpret(self, absorbed_bouncebeam, pixel_number):
+        return self.boundary.interpret(self.bunorient(absorbed_bouncebeam), pixel_number)
 
 
 
 # ---------------------------------------------------------------------------
 
 
+
+def run(scene, pixel_number, sample_number, p=0.8):
+    output = dict()
+    while sample_number > 0:
+        forwards_length = np.random.geometric(p)
+        backwards_length = np.random.geometric(p)
+        do = scene.run(forwards_length, backwards_length, pixel_number)
+        if do is None:
+            continue
+        else:
+            sample_number += -1
+            weight = do[1] * 1/((p**2)*((1-p)**(forwards_length+backwards_length-2)))
+
+            if do[0][2] is 'R':
+                key = (do[0][0], do[0][1], 0)
+            elif do[0][2] is 'G':
+                key = (do[0][0], do[0][1], 1)
+            elif do[0][2] is 'B':
+                key = (do[0][0], do[0][1], 2)
+            else:
+                raise Exception('Not an RGB pure color')
+
+
+            if key in output:
+                output[key] += weight
+            else:
+                output[key] = weight
+
+
+
+            # if do[0][0:2] in output:
+            #     if do[0][2] in output[do[0][0:2]]:
+            #         output[do[0][0:2]][do[0][2]] += weight
+            #     else:
+            #         output[do[0][0:2]][do[0][2]] = weight
+            # else:
+            #     output[do[0][0:2]] = {do[0][2]:weight}
+
+
+
+
+    return output
 
 
 
