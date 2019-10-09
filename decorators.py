@@ -158,11 +158,15 @@ import math
 
 # ------------------------------------------------------------
 
-a = np.array([[1,2],[3,4],[5,6]])
+# a = np.array([[1,2],[3,4],[5,6]])
 
-np.save('./file_testerw', a)
-b = np.load('./file_testerw.npy')
-print(b)
+# np.save('./file_testerw', a)
+# b = np.load('./file_testerw.npy')
+# print(b)
+
+# ------------------------------------------------------------
+
+print(np.random.geometric(0.5))
 
 
 

@@ -11,7 +11,6 @@ import random
 TriangleSampler = TriangleSampler()
 
 
-
 class BounceBeam:
     def __init__(self, incoming_vector, outgoing_direction, beam_color):
         self.incoming_vector = incoming_vector
@@ -28,32 +27,37 @@ class Interaction:
         self.physical_likelihood = self.get_physical_likelihood()
 
     def get_forwards_sampling_likelihood(self):
-        return self.embeddedpoint.piece.forwards_sampling_likelihood(self.bouncebeam)
+        x = self.embeddedpoint.piece.forwards_sampling_likelihood(self.bouncebeam)
+        if self.bouncebeam.incoming_vector is 'emitted':
+            x *= self.embeddedpoint.piece.sampled_point_likelihood(self.embeddedpoint)*self.embeddedpoint.piece.metropolisboundary.sampled_color_likelihood(self.bouncebeam.beam_color)
+        return x
 
     def get_backwards_sampling_likelihood(self):
-        return self.embeddedpoint.piece.backwards_sampling_likelihood(self.bouncebeam)
+        x = self.embeddedpoint.piece.backwards_sampling_likelihood(self.bouncebeam)
+        if self.bouncebeam.outgoing_direction is 'absorbed':
+            x *= self.embeddedpoint.piece.sampled_point_likelihood(self.embeddedpoint)
+        return x
 
     def get_physical_likelihood(self):
-        return self.embeddedpoint.piece.get_physical_likelihood(self.bouncebeam)
+        x = self.embeddedpoint.piece.get_physical_likelihood(self.bouncebeam)
+        return x
 
 
 # ---------------------------------------------------------------------------
 
 
-from sampler import RGB
-
-class PhysicalLikelihoodGetter(ABC):
+class PhysicalBoundary(ABC): # TODO: make this work with full spectrum colors and refraction/attenuation indices
     @abstractmethod
-    def get(self, bouncebeam):
+    def physical_likelihood(self, bouncebeam):
         pass
 
 
-class Lambertian(PhysicalLikelihoodGetter):
-    def __init__(self, color = RGB(), emittance = 0):
+class Lambertian(PhysicalBoundary):
+    def __init__(self, color, emittance = 0):
         self.color = color
         self.emittance = emittance
 
-    def get(self, bouncebeam):
+    def physical_likelihood(self, bouncebeam):
         if bouncebeam.incoming_vector is 'emitted':
             a = self.emittance
         elif bouncebeam.incoming_vector.item(2) < 0:
@@ -72,12 +76,12 @@ class Lambertian(PhysicalLikelihoodGetter):
         return self.color.likelihood(bouncebeam.beam_color)*a*b/math.pi
 
 
-class Atomic(PhysicalLikelihoodGetter):
-    def __init__(self, color = RGB(1,1,1), emittance = 0):
+class Atomic(PhysicalBoundary):
+    def __init__(self, color, emittance = 0):
         self.color = color
         self.emittance = emittance
 
-    def get(self, bouncebeam):
+    def physical_likelihood(self, bouncebeam):
         if bouncebeam.incoming_vector is 'emitted':
             a = self.emittance
         else:
@@ -92,34 +96,15 @@ class Atomic(PhysicalLikelihoodGetter):
         return self.color.likelihood(bouncebeam.beam_color)*a*b
 
 
-class Eyeball(PhysicalLikelihoodGetter):
-    def __init__(self):
-        self.emittance = 0
-
-    def get(self, bouncebeam):
-        if bouncebeam.outgoing_direction is 'absorbed':
-            return 1
-
-        else:
-            raise Exception("This shouldn't happen in the current implementation... the eye has no physical extent and cannot be bounced off at the moment.")
-
-
 # ---------------------------------------------------------------------------
 
-
-class Medium:
-    def __init__(self, is_emitter=False, is_eye=False):
-        self.is_emitter = is_emitter
-        self.is_eye = is_eye
-
-#colors are only sampled or resampled at emitters
-class Boundary(Medium):#TODO: make this work with full spectrum colors and refraction/attenuation indices
-    def __init__(self, direction_sampler, direction_resampler, physicallikelihoodgetter, color_sampler=None):
-        #color_sampler only necessary if it's an emitter... which is contained in the physicallikelihoodgetter... rearrange class structure?
+#color_sampler only necessary if it's an emitter...
+class MetropolisBoundary:
+    def __init__(self, direction_sampler, direction_resampler, physicalboundary, color_sampler=None):
         self.direction_sampler = direction_sampler
         self.direction_resampler = direction_resampler
-        self.physicallikelihoodgetter = physicallikelihoodgetter
-        self.emittance = self.physicallikelihoodgetter.emittance
+        self.physicalboundary = physicalboundary
+        self.emittance = self.physicalboundary.emittance
         self.color_sampler = color_sampler
 
     def sample_color(self):
@@ -127,9 +112,6 @@ class Boundary(Medium):#TODO: make this work with full spectrum colors and refra
 
     def sampled_color_likelihood(self, color):
         return self.color_sampler.likelihood(color)
-
-    def is_eye(self):
-        return False
 
     def sample_direction(self):
         return self.direction_sampler.sample()
@@ -159,27 +141,7 @@ class Boundary(Medium):#TODO: make this work with full spectrum colors and refra
         return self.sampled_direction_likelihood(argument)
 
     def get_physical_likelihood(self, bouncebeam):
-        return self.physicallikelihoodgetter.get(bouncebeam)
-
-
-class Lens(Boundary):
-    def __init__(self, x_field, y_field):# x_field, y_field are dimensions of a lens at unit distance from the eye
-        self.x_field = x_field
-        self.y_field = y_field
-        self.direction_sampler = LensSampler(x_field, y_field)
-        self.direction_resampler = LensSampler(x_field, y_field)
-        self.physicallikelihoodgetter = Eyeball()
-
-    def is_eye(self):
-        return True
-
-    def interpret(self, absorbed_bouncebeam, pixel_number):
-        if absorbed_bouncebeam.outgoing_direction is 'absorbed':
-            incoming_direction = normalize(absorbed_bouncebeam.incoming_vector)
-            (x,y) = hemisphere_to_lens(incoming_direction)
-            x_pixel = math.floor(pixel_number*(0.5 + x/self.x_field))
-            y_pixel = math.floor(pixel_number*(0.5 + y/self.y_field))
-            return (x_pixel, y_pixel, absorbed_bouncebeam.beam_color)
+        return self.physicalboundary.physical_likelihood(bouncebeam)
 
 
 # ---------------------------------------------------------------------------
@@ -208,24 +170,38 @@ class Surface(Scene):
         self.emitters = self.get_emitters()
         self.eye = self.get_eye()
 
+    # def sample_next_embeddedpoint(self, embeddedpoint):
+    #     if embeddedpoint is EmbeddedPoint('created', None):
+    #         return self.sample_emitted_point
+    #     elif embeddedpoint is EmbeddedPoint('annihilated', None):
+    #         return self.get_eye.sample_point()
+    #     else:
+    #         return self.hit(embeddedpoint, embeddedpoint.piece.sample_direction())
+
+    # def sampled_next_embeddedpoint_likelihood(self, initial_embeddedpoint, next_embeddedpoint):
+    #     if initial_embeddedpoint is EmbeddedPoint('created', None):
+    #         return self.sampled_emitted_point_likelihood(next_embeddedpoint)
+    #     elif initial_embeddedpoint is EmbeddedPoint('annihilated', None):
+    #         return
+
     def get_emitters(self):
         emitters = []
         for piece in self.pieces:
-            if piece.boundary.physicallikelihoodgetter.emittance > 0:
+            if piece.metropolisboundary.physicalboundary.emittance > 0:
                 emitters += [piece]
         return emitters
 
-    def sample_emitting_point(self):
+    def sample_emitted_point(self):
         piece = random.choice(self.emitters)
         return piece.sample_point()
 
-    def sampled_emitting_point_likelihood(self, embeddedpoint):
+    def sampled_emitted_point_likelihood(self, embeddedpoint):
         return embeddedpoint.piece.sampled_point_likelihood(embeddedpoint)
 
     def get_eye(self):
         eyes = []
         for piece in self.pieces:
-            if piece.boundary.is_eye():
+            if piece.is_eye():
                 eyes += [piece]
         if len(eyes) == 0:
             print('There is no eye to see...')
@@ -291,20 +267,6 @@ class Surface(Scene):
         except AttributeError:
             return False
 
-    def join(self, forwards_length, start_embeddedpoint, backwards_length, end_embeddedpoint):
-        forwards_path = self.cast(forwards_length, start_embeddedpoint)
-        backwards_path = self.cast(backwards_length, end_embeddedpoint)
-        backwards_path.reverse()
-        if forwards_path is None or backwards_path is None:
-            return None
-        else:
-            head_embeddedpoint = forwards_path[-1]
-            tail_embeddedpoint = backwards_path[0]
-            if self.see(head_embeddedpoint, tail_embeddedpoint):
-                return forwards_path + backwards_path
-            else:
-                return None
-
     def convert_to_bouncebeam_list(self, incoming_vector, intermediate_hit_list, outgoing_direction, beam_color):
         l = len(intermediate_hit_list)
         if l == 1:
@@ -317,29 +279,11 @@ class Surface(Scene):
         bouncebeam_list = self.convert_to_bouncebeam_list(incoming_vector, intermediate_hit_list, outgoing_direction, beam_color)
         return list(Interaction(*pair) for pair in zip(intermediate_hit_list, bouncebeam_list))
 
-    def run(self, forwards_length, backwards_length, pixel_number):
-        end_embeddedpoint = self.eye.sample_point()
-        start_embeddedpoint = self.sample_emitting_point()
-        path = self.join(forwards_length, start_embeddedpoint, backwards_length, end_embeddedpoint)
-        if path is None:
-            return None
-        else:
-            beam_color = start_embeddedpoint.piece.boundary.sample_color()
-
-            sampling_likelihood = end_embeddedpoint.piece.sampled_point_likelihood(end_embeddedpoint)
-            sampling_likelihood *= start_embeddedpoint.piece.sampled_point_likelihood(start_embeddedpoint)
-            sampling_likelihood *= start_embeddedpoint.piece.boundary.sampled_color_likelihood(beam_color)
-            physical_likelihood = 1
-            interaction_list = self.convert_to_interaction_list('emitted', path, 'absorbed', beam_color)
-            for interaction in interaction_list:
-                sampling_likelihood *= interaction.forwards_sampling_likelihood
-                physical_likelihood *= interaction.physical_likelihood
-            weight = physical_likelihood/sampling_likelihood
-            absorbed_bouncebeam = interaction_list[-1].bouncebeam
-            return (self.eye.interpret(absorbed_bouncebeam, pixel_number), weight)
-
 
 class FlatPiece(Scene):
+    def is_eye(self):
+        return False
+
     def get_orthoframe(self):
         orthoframe = extend_to_O(self.normal)
         return orthoframe
@@ -366,16 +310,16 @@ class FlatPiece(Scene):
         raise Exception('Undefined')
 
     def sample_direction(self):
-        return self.orient(self.boundary.sample_direction())
+        return self.orient(self.metropolisboundary.sample_direction())
 
     def sampled_direction_likelihood(self, direction):
-        return self.boundary.sampled_direction_likelihood(self.unorient(direction))
+        return self.metropolisboundary.sampled_direction_likelihood(self.unorient(direction))
 
     def resample_direction(self, direction):
-        return self.orient(self.boundary.resample_direction(self.unorient(direction)))
+        return self.orient(self.metropolisboundary.resample_direction(self.unorient(direction)))
 
     def resampled_direction_likelihood_ratio(self, new_direction, old_direction):
-        return self.boundary.resampled_direction_likelihood_ratio(self.unorient(new_direction), self.unorient(old_direction))
+        return self.metropolisboundary.resampled_direction_likelihood_ratio(self.unorient(new_direction), self.unorient(old_direction))
 
     def borient(self, bouncebeam):
         return BounceBeam(self.orient(bouncebeam.incoming_vector), self.orient(bouncebeam.outgoing_direction), bouncebeam.beam_color)
@@ -384,17 +328,17 @@ class FlatPiece(Scene):
         return BounceBeam(self.unorient(bouncebeam.incoming_vector), self.unorient(bouncebeam.outgoing_direction), bouncebeam.beam_color)
 
     def forwards_sampling_likelihood(self, bouncebeam):
-        return self.boundary.forwards_sampling_likelihood(self.bunorient(bouncebeam))
+        return self.metropolisboundary.forwards_sampling_likelihood(self.bunorient(bouncebeam))
 
     def backwards_sampling_likelihood(self, bouncebeam):
-        return self.boundary.backwards_sampling_likelihood(self.bunorient(bouncebeam))
+        return self.metropolisboundary.backwards_sampling_likelihood(self.bunorient(bouncebeam))
 
     def get_physical_likelihood(self, bouncebeam):
-        return self.boundary.physicallikelihoodgetter.get(self.bunorient(bouncebeam))
+        return self.metropolisboundary.physicalboundary.physical_likelihood(self.bunorient(bouncebeam))
 
 
 class Triangle(FlatPiece):
-    def __init__(self, vertices, boundary, name=None, normal=None, inwards_normals=None, orthoframe=None):
+    def __init__(self, vertices, metropolisboundary, name=None, normal=None, inwards_normals=None, orthoframe=None):
         """ Docstring: short one-line description
 
         Followed by a longer description
@@ -409,7 +353,7 @@ class Triangle(FlatPiece):
         """
         # convention: outward pointing normal
         self.vertices = vertices  # should be a list of three vertices
-        self.boundary = boundary
+        self.metropolisboundary = metropolisboundary
         self.name = name
         self.normal = self.get_normal()
         self.orthoframe = self.get_orthoframe()
@@ -463,10 +407,10 @@ class Triangle(FlatPiece):
 
 
 class Dirac(FlatPiece):#an insubstantial point; only useful as either light source or eye
-    def __init__(self, point, boundary, normal=np.array([1,0,0]), name=None, orthoframe=None):
+    def __init__(self, point, metropolisboundary, normal=np.array([1,0,0]), name=None, orthoframe=None):
         self.point = point
-        self.boundary = boundary
-        self.normal = normal
+        self.metropolisboundary = metropolisboundary
+        self.normal = normalize(normal)
         self.name = name
         self.orthoframe = self.get_orthoframe()
 
@@ -484,34 +428,65 @@ class Dirac(FlatPiece):#an insubstantial point; only useful as either light sour
 
 
 class DiracEye(Dirac):
-    def __init__(self, point, normal, up, x_field = 5, y_field = 5, name=None, orthoframe=None):
-        self.point = point
-        self.normal = normalize(normal)
-        self.name = name
+    def __init__(self, point, metropolisboundary, normal, up, name=None, orthoframe=None):
         self.up = normalize(up)
-        self.x_field = x_field
-        self.y_field = y_field
-        self.boundary = Lens(self.x_field, self.y_field)
-        self.orthoframe = self.get_orthoframe()
+        super().__init__(point, metropolisboundary, normal, name, orthoframe)
+
+    def is_eye(self):
+        return True
 
     def get_orthoframe(self):
         cross = np.cross(self.normal, self.up)
         return np.array([self.up, cross, self.normal]).transpose()
 
-    def interpret(self, absorbed_bouncebeam, pixel_number):
-        return self.boundary.interpret(self.bunorient(absorbed_bouncebeam), pixel_number)
-
-
 
 # ---------------------------------------------------------------------------
 
 
-
-def run(scene, pixel_number, sample_number, p=0.8):
+def run(scene, emitted_sample_number, absorbed_sample_number, p=0.8):
     output = dict()
-    while sample_number > 0:
-        forwards_length = np.random.geometric(p)
-        backwards_length = np.random.geometric(p)
+    emitted_paths = set()
+    absorbed_paths = set()
+    eye = scene.get_eye()
+
+    while emitted_sample_number > 0:
+        length = np.random.geometric(p) - 1
+        emitted_point = scene.sample_emitted_point()
+        path = scene.cast(scene, length, emitted_point)
+        if path is None:
+            continue
+        else:
+            emitted_sample_number += -1
+            beam_color = emitted_point.piece.metropolisboundary.sample_color()
+            emitted_paths.add((path, beam_color))
+
+    while absorbed_sample_number > 0:
+        length = np.random.geometric(p) - 1
+        absorbed_point = eye.sample_point()
+        path = scene.cast(scene, length, absorbed_point)
+        if path is None:
+            continue
+        else:
+            absorbed_sample_number += -1
+            absorbed_paths.add(path)
+
+    for emitted_path in emitted_paths:
+        for absorbed_path in absorbed_paths:
+            if scene.see(emitted_path[0][-1], absorbed_path[0]):
+                absorbed_path.reverse()
+                path = emitted_path[0] + absorbed_path
+                beam_color = emitted_path[1]
+                interaction_list = scene.convert_to_interaction_list('emitted', path, 'absorbed', beam_color)
+                physical_likelihood = 1
+                for interaction in interaction_list:
+                    physical_likelihood *= interaction.physical_likelihood
+                sampling_likelihood = 0
+                for i in range(len(interaction_list))
+
+
+
+
+
         do = scene.run(forwards_length, backwards_length, pixel_number)
         if do is None:
             continue
@@ -534,19 +509,6 @@ def run(scene, pixel_number, sample_number, p=0.8):
             else:
                 output[key] = weight
 
-
-
-            # if do[0][0:2] in output:
-            #     if do[0][2] in output[do[0][0:2]]:
-            #         output[do[0][0:2]][do[0][2]] += weight
-            #     else:
-            #         output[do[0][0:2]][do[0][2]] = weight
-            # else:
-            #     output[do[0][0:2]] = {do[0][2]:weight}
-
-
-
-
     return output
 
 
@@ -555,6 +517,17 @@ def run(scene, pixel_number, sample_number, p=0.8):
 
 
 
+def run(scene, forwards_length, backwards_length):
+    end_embeddedpoint = self.eye.sample_point()
+    start_embeddedpoint = self.sample_emitting_point()
+    path = self.join(forwards_length, start_embeddedpoint, backwards_length, end_embeddedpoint)
+    if path is None:
+        return None
+    else:
+
+        weight = physical_likelihood/sampling_likelihood
+        absorbed_bouncebeam = interaction_list[-1].bouncebeam
+        return (self.eye.interpret(absorbed_bouncebeam, pixel_number), weight)
 
 
 
@@ -569,6 +542,17 @@ def run(scene, pixel_number, sample_number, p=0.8):
 
 
 
+
+
+
+
+    def interpret(self, absorbed_bouncebeam, pixel_number):
+        if absorbed_bouncebeam.outgoing_direction is 'absorbed':
+            incoming_direction = normalize(absorbed_bouncebeam.incoming_vector)
+            (x,y) = hemisphere_to_lens(incoming_direction)
+            x_pixel = math.floor(pixel_number*(0.5 + x/self.x_field))
+            y_pixel = math.floor(pixel_number*(0.5 + y/self.y_field))
+            return (x_pixel, y_pixel, absorbed_bouncebeam.beam_color)
 
 
 
