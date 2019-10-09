@@ -230,18 +230,17 @@ class Scene_test(unittest.TestCase):
 
 		pixel_number = 100
 
-		#CAREFUL
+		# # #CAREFUL
 
-		# x = scene.run(S1, pixel_number, 1000000)
-		# mat = np.zeros((pixel_number, pixel_number, 3))
-		# for key in x:
-		# 	mat[key] = x[key]
-		# mat = mat/mat.max()
+		# # # x = scene.run(S1, pixel_number, 1000000)
+		# # # mat = np.zeros((pixel_number, pixel_number, 3))
+		# # # for key in x:
+		# # # 	mat[key] = x[key]
+		# # # mat = mat/mat.max()
 
-		# np.save('./test_plot2', mat)
-		# plt.imshow(mat)
-		# plt.show()
-
+		# # # np.save('./test_plot2', mat)
+		# # # plt.imshow(mat)
+		# # # plt.show()
 
 
 
