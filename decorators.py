@@ -1,7 +1,7 @@
-import numpy as np
-array = np.ndarray
-import random
-import math
+# import numpy as np
+# array = np.ndarray
+# import random
+# import math
 
 # def wrap(f):
 #     def wrapped_f(*args):
@@ -166,7 +166,62 @@ import math
 
 # ------------------------------------------------------------
 
-print(np.random.geometric(0.5))
+# def _pair(self, obj1, obj2):
+#     for attribute in obj1.__dict__:
+#         setattr(self, attribute, getattr(obj1, attribute))
+#     for attribute in obj2.__dict__:
+#         setattr(self, attribute, getattr(obj2, attribute))
+
+# def Pair(obj1, obj2):
+#     type1 = type(obj1)
+#     type2 = type(obj2)
+#     class_name = type1.__name__ + '_x_' + type2.__name__
+#     _class = type(class_name,
+#         (type1, type2),
+#         {"__init__":_pair})
+#     return _class(obj1, obj2)
+
+# class AClass:
+#     def __init__(self, a=1):
+#         self.a = a
+
+#     def f(self):
+#         return '!!!'
+
+# x = AClass()
+
+# class BClass:
+#     def __init__(self, b=2):
+#         self.b = b
+
+#     def g(self):
+#         return '!!!!'
+
+#     def f(self):
+#         return '!!!!!'
+
+# y = BClass()
+
+# z = Pair(x,y)
+
+# print(type(z).mro())
+
+# ------------------------------------------------------------
+
+
+from vectors import Displacement, Direction
+
+x = Direction('photon checking in...')
+y = Direction(np.array([1,2,3]))
+print(x.idem)
+print(y.idem)
+
+
+
+
+
+
+
 
 
 

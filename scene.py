@@ -3,44 +3,153 @@ import math
 from scipy.stats import norm
 from abc import ABC, abstractmethod
 import logging
-from functions import normalize, extend_to_O, lens_to_hemisphere, hemisphere_to_lens
+from functions import normalize, extend_to_O, lens_to_hemisphere, hemisphere_to_lens, bernoulli
 from sampler import LensSam as LensSampler
-from sampler import TriangleSam as TriangleSampler
+from displacement import Displacement, Direction
 import random
 
-TriangleSampler = TriangleSampler()
 
 
-class BounceBeam:
-    def __init__(self, incoming_vector, outgoing_direction, beam_color):
-        self.incoming_vector = incoming_vector
-        self.outgoing_direction = outgoing_direction
-        self.beam_color = beam_color
+class GeometricObject(ABC):
+    @abstractmethod
+    def __init__(self):
+        pass
 
 
-class Interaction:
-    def __init__(self, embeddedpoint, bouncebeam):
-        self.embeddedpoint = embeddedpoint
-        self.bouncebeam = bouncebeam
-        self.forwards_sampling_likelihood = self.get_forwards_sampling_likelihood()
-        self.backwards_sampling_likelihood = self.get_backwards_sampling_likelihood()
-        self.physical_likelihood = self.get_physical_likelihood()
+class Boundary(GeometricObject):
+    def __init__(self, pieces):
+        self.pieces = pieces
 
-    def get_forwards_sampling_likelihood(self):
-        x = self.embeddedpoint.piece.forwards_sampling_likelihood(self.bouncebeam)
-        if self.bouncebeam.incoming_vector is 'emitted':
-            x *= self.embeddedpoint.piece.sampled_point_likelihood(self.embeddedpoint)*self.embeddedpoint.piece.metropolisboundary.sampled_color_likelihood(self.bouncebeam.beam_color)
-        return x
+# Special parts of the object:
 
-    def get_backwards_sampling_likelihood(self):
-        x = self.embeddedpoint.piece.backwards_sampling_likelihood(self.bouncebeam)
-        if self.bouncebeam.outgoing_direction is 'absorbed':
-            x *= self.embeddedpoint.piece.sampled_point_likelihood(self.embeddedpoint)
-        return x
+    @property
+    def emitting_part(self):
+        pieces = set()
+        for piece in self.pieces:
+            if piece.is_emitter:
+                pieces.add{piece}
+        return Boundary(pieces)
 
-    def get_physical_likelihood(self):
-        x = self.embeddedpoint.piece.get_physical_likelihood(self.bouncebeam)
-        return x
+    @property
+    def absorbing_part(self):
+        pieces = set()
+        for piece in self.pieces:
+            if piece.is_lens:
+                pieces.add{piece}
+        return Boundary(pieces)
+
+# Core geometric operations:
+
+    def hit(self, point, displacement):
+        min_distance = math.inf
+        curr_point = None
+        for piece in self.pieces:
+            new_point = piece.hit(point, displacement)
+            if new_point is None:
+                pass
+            else:
+                distance = point.distance(new_point)
+                if distance < min_distance:
+                    min_distance = distance
+                    curr_point = new_point
+        return curr_point
+
+    def can_see(self, head_point, tail_point):
+    # Can tail_embeddedpoint be seen from head_embeddedpoint?
+    # Answer is always False if tail_embeddedpoint is insubstantial (i.e. its piece is None).
+    # However, the piece value of head_embeddedpoint is usually irrelevant - it only shows up in some bullshit rounding situations
+        displacement = head_point.displacement(tail_point)
+        distance = head_point.distance(tail_point)
+        for piece in self.pieces:
+            new_point = piece.hit(head_point, displacement)
+            if new_point is None:
+                pass
+            else:
+                new_distance = head_point.distance(new_point)
+                if new_distance < distance:
+                    if new_point.locale is tail_point.locale:
+                        pass
+                    else:
+                        return False
+                else:
+                    pass
+        return True
+
+# Uniform distribution on points:
+
+    def sample_piece(self):
+        return random.choice(self.pieces)
+
+    def sample_point(self):
+        _piece = self.sample_piece()
+        return _piece.sample_point()
+
+    def sampled_point_likelihood(self, point):
+        return point.sampled_point_likelihood
+        # return point.piece.sampled_point_likelihood(point)
+
+# Rules for sampling initial states:
+
+    def sample_initial_state(self):
+        _emitter = self.emitting_part.sample_piece()
+        return _emitter.sample_initial_state()
+
+    def sampled_initial_state_likelihood(self, state):
+        return state.sampled_initial_state_likelihood
+        # return initial_state.piece.sampled_initial_state_likelihood
+
+# Rules for resampling initial states:
+
+# Rules for sampling final states:
+
+    def sample_final_state(self, absorbed_state):
+        final_point = self.absorbing_part.sample_point
+        final_state = final_point.make_state(absorbed_state.color)
+        return final_state
+
+    def sampled_final_state_likelihood(absorbed_state, final_state):
+        return final_state.sampled_point_likelihood
+
+# Rules for sampling directions:
+
+    def sample_direction(self, incoming_displacement, state):
+        return state.sample_direction(incoming_displacement)
+
+    def sampled_direction_likelihood(self, incoming_displacement, state, outgoing_direction):
+        return state.sampled_direction_likelihood(incoming_displacement, outgoing_direction)
+
+# Rules for resampling directions:
+
+# Rules for sampling next state:
+
+    def sample_next_state(self, previous_state, current_state):
+        if previous_state.location is 'created' and current_state.location is 'emitted':
+            return self.sample_initial_state()
+        elif previous_state.location is 'annihilated' and current_state.location is 'absorbed':
+            return self.sample_final_state(current_state)
+        else:
+            incoming_displacement = displacement(previous_state, current_state)
+            direction = self.sample_direction(incoming_displacement, current_state)
+            next_point = self.hit(current_state, direction)
+            next_state = next_point.make_state(current_state.color)
+            return return next_state
+
+    def sampled_next_state_likelihood(self, previous_state, current_state, next_state):
+        if previous_state.location is 'created' and current_state.location is 'emitted':
+            return self.sampled_initial_state_likelihood(next_state)
+        elif previous_state.location is 'annihilated' and current_state.location is 'absorbed':
+            return self.sampled_final_state_likelihood(next_state)
+        else:
+            incoming_displacement = displacement(previous_state, current_state)
+            outgoing_direction = direction(current_state, next_state)
+            return self.sampled_direction_likelihood(incoming_displacement, current_state, outgoing_direction)
+
+
+
+
+
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +157,7 @@ class Interaction:
 
 class PhysicalBoundary(ABC): # TODO: make this work with full spectrum colors and refraction/attenuation indices
     @abstractmethod
-    def physical_likelihood(self, bouncebeam):
+    def physical_likelihood(self, Ricochet, beam_color):
         pass
 
 
@@ -147,13 +256,6 @@ class MetropolisBoundary:
 # ---------------------------------------------------------------------------
 
 
-class EmbeddedPoint: # TODO consider forcing definition of physical likelihood functions on this level rather than on the level of boundaries; this would allow non-constructible optical properties
-    def __init__(self, point, piece):
-        self.point = point
-        self.piece = piece
-
-    def distance(self, other):
-        return np.linalg.norm(self.point - other.point)
 
 
 # ---------------------------------------------------------------------------
@@ -210,19 +312,6 @@ class Surface(Scene):
             print("There are several eyes, I'll use the first I found...")
         return eyes[0]
 
-    def hit(self, embeddedpoint, direction):
-        min_distance = math.inf
-        curr_embeddedpoint = None
-        for piece in self.pieces:
-            new_embeddedpoint = piece.hit(embeddedpoint, direction)
-            if new_embeddedpoint is None:
-                pass
-            else:
-                distance = embeddedpoint.distance(new_embeddedpoint)
-                if distance < min_distance:
-                    min_distance = distance
-                    curr_embeddedpoint = new_embeddedpoint
-        return curr_embeddedpoint
 
     def cast(self, length, embeddedpoint):
         if embeddedpoint is None:
@@ -256,17 +345,6 @@ class Surface(Scene):
             print(embeddedpoint.point, embeddedpoint.piece.name)
             return output
 
-    def see(self, head_embeddedpoint, tail_embeddedpoint):
-    # Can tail_embeddedpoint be seen from head_embeddedpoint?
-    # Answer is always False if tail_embeddedpoint is insubstantial (i.e. its piece is None).
-    # However, the piece value of head_embeddedpoint is usually irrelevant - it only shows up in some bullshit rounding situations
-        direction = tail_embeddedpoint.point - head_embeddedpoint.point
-        hit_embeddedpoint = self.hit(head_embeddedpoint, direction)
-        try:
-            return hit_embeddedpoint.piece is tail_embeddedpoint.piece
-        except AttributeError:
-            return False
-
     def convert_to_bouncebeam_list(self, incoming_vector, intermediate_hit_list, outgoing_direction, beam_color):
         l = len(intermediate_hit_list)
         if l == 1:
@@ -280,7 +358,7 @@ class Surface(Scene):
         return list(Interaction(*pair) for pair in zip(intermediate_hit_list, bouncebeam_list))
 
 
-class FlatPiece(Scene):
+class Piece(Scene):
     def is_eye(self):
         return False
 
@@ -337,107 +415,12 @@ class FlatPiece(Scene):
         return self.metropolisboundary.physicalboundary.physical_likelihood(self.bunorient(bouncebeam))
 
 
-class Triangle(FlatPiece):
-    def __init__(self, vertices, metropolisboundary, name=None, normal=None, inwards_normals=None, orthoframe=None):
-        """ Docstring: short one-line description
-
-        Followed by a longer description
-
-        Args:
-        vertices (type): what it's for
-        ...
-
-        Returns (type): ...
-
-        We use Google-style docstrings
-        """
-        # convention: outward pointing normal
-        self.vertices = vertices  # should be a list of three vertices
-        self.metropolisboundary = metropolisboundary
-        self.name = name
-        self.normal = self.get_normal()
-        self.orthoframe = self.get_orthoframe()
-        self.inwards_normals = self.get_inwards_normals()
-        self.area = self.get_area()
-
-    def get_normal(self):
-        p = self.vertices
-        helper = np.cross(p[1] - p[0], p[2] - p[0])
-        return normalize(helper)
-
-    def get_inwards_normals(self):
-        p = self.vertices
-        normal = self.normal
-        in_0 = np.cross(normal, p[1] - p[0])
-        in_1 = np.cross(normal, p[2] - p[1])
-        in_2 = np.cross(normal, p[0] - p[2])
-        return [in_0, in_1, in_2]
-
-    def hit(self, embeddedpoint, direction):#TODO all below
-        if self is embeddedpoint.piece:
-            return None
-        else:
-            p = self.vertices
-            normal = self.normal
-            inwards_normals = self.inwards_normals
-            point = embeddedpoint.point
-            if (np.dot(normal, direction)) * np.dot(point - p[0], normal) >= 0:
-                return None
-            projection = (point-(1/np.dot(normal, direction))*np.dot(point-p[0], normal)*direction)
-            for i in range(3):
-                if np.dot(inwards_normals[i], projection - p[i]) < 0:
-                    return None
-            return EmbeddedPoint(projection, self)
-
-    def get_area(self):
-        p = self.vertices
-        return np.linalg.norm(np.cross(p[1]-p[0], p[2]-p[0]))
-
-    def sample_point(self):
-        (s,t) = TriangleSampler.sample()
-        p = self.vertices
-        point = (1-s-t)*p[0] + s*p[1] + t*p[2]
-        return EmbeddedPoint(point, self)
-
-    def sampled_point_likelihood(self, embeddedpoint):
-        if embeddedpoint.piece is self:
-            return 1/self.area
-        else:
-            raise Exception("You shouldn't have tried to compute that likelihood... it's af a point which is not embedded in this triangle.")
 
 
-class Dirac(FlatPiece):#an insubstantial point; only useful as either light source or eye
-    def __init__(self, point, metropolisboundary, normal=np.array([1,0,0]), name=None, orthoframe=None):
-        self.point = point
-        self.metropolisboundary = metropolisboundary
-        self.normal = normalize(normal)
-        self.name = name
-        self.orthoframe = self.get_orthoframe()
-
-    def hit(self, embeddedpoint, direction):
-        return None
-
-    def sample_point(self):
-        return EmbeddedPoint(self.point, self)
-
-    def sampled_point_likelihood(self, embeddedpoint):
-        if embeddedpoint.piece is self and (embeddedpoint.point == self.point).all():
-            return 1
-        else:
-            raise Exception('Something went wrong, getting the likelihood of a remote point...')
 
 
-class DiracEye(Dirac):
-    def __init__(self, point, metropolisboundary, normal, up, name=None, orthoframe=None):
-        self.up = normalize(up)
-        super().__init__(point, metropolisboundary, normal, name, orthoframe)
 
-    def is_eye(self):
-        return True
 
-    def get_orthoframe(self):
-        cross = np.cross(self.normal, self.up)
-        return np.array([self.up, cross, self.normal]).transpose()
 
 
 # ---------------------------------------------------------------------------

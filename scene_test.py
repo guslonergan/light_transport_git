@@ -15,7 +15,7 @@ class Scene_test(unittest.TestCase):
 		z = np.array([0.1,0.1,100.1])
 		o = np.array([0.1,0.1,0.1])
 
-		white_Lambert = scene.Boundary(sampler.UniformHemisphere(),sampler.KentSphere(),scene.Lambertian(),sampler.RGB())
+		white_Lambert = scene.Boundary(sampler.UniformHemisphere(),sampler.KentSphere(),scene.Lambertian(sampler.RGB()),sampler.RGB())
 
 		T1 = scene.Triangle( [x,y,z], white_Lambert, 'T1')
 		T2 = scene.Triangle( [x,o,y], white_Lambert, 'T2')
@@ -48,7 +48,7 @@ class Scene_test(unittest.TestCase):
 		b = np.array([0,200,0])
 		c = np.array([0,0,200])
 
-		white_Lambert = scene.Boundary(sampler.UniformHemisphere(),sampler.KentSphere(),scene.Lambertian(),sampler.RGB())
+		white_Lambert = scene.Boundary(sampler.UniformHemisphere(),sampler.KentSphere(),scene.Lambertian(sampler.RGB()),sampler.RGB())
 
 		T1 = scene.Triangle( [x,y,z], white_Lambert, 'T1')
 		T2 = scene.Triangle( [x,o,y], white_Lambert, 'T2')
@@ -87,7 +87,7 @@ class Scene_test(unittest.TestCase):
 		b = np.array([0,200,0])
 		c = np.array([0,0,200])
 
-		white_Lambert = scene.Boundary(sampler.UniformHemisphere(),sampler.KentSphere(),scene.Lambertian(),sampler.RGB())
+		white_Lambert = scene.Boundary(sampler.UniformHemisphere(),sampler.KentSphere(),scene.Lambertian(sampler.RGB()),sampler.RGB())
 
 		T1 = scene.Triangle( [x,y,z], white_Lambert, 'T1')
 		T2 = scene.Triangle( [x,o,y], white_Lambert, 'T2')
@@ -143,7 +143,7 @@ class Scene_test(unittest.TestCase):
 		b = np.array([0,200,0])
 		c = np.array([0,0,200])
 
-		white_Lambert = scene.Boundary(sampler.UniformHemisphere(),sampler.KentSphere(),scene.Lambertian(),sampler.RGB())
+		white_Lambert = scene.Boundary(sampler.UniformHemisphere(),sampler.KentSphere(),scene.Lambertian(sampler.RGB()),sampler.RGB())
 
 		T1 = scene.Triangle( [x,y,z], white_Lambert, 'T1')
 		T2 = scene.Triangle( [x,o,y], white_Lambert, 'T2')
@@ -200,7 +200,7 @@ class Scene_test(unittest.TestCase):
 		b = np.array([0,200,0])
 		c = np.array([0,0,200])
 
-		white_Lambert = scene.Boundary(sampler.UniformHemisphere(),sampler.KentSphere(),scene.Lambertian(),sampler.RGB())
+		white_Lambert = scene.Boundary(sampler.UniformHemisphere(),sampler.KentSphere(),scene.Lambertian(sampler.RGB()),sampler.RGB())
 
 		white_light_atom = scene.Boundary(sampler.UniformSphere(),sampler.KentSphere(),scene.Atomic(sampler.RGB(),1),sampler.RGB())
 

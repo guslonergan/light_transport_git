@@ -2,35 +2,35 @@ import numpy as np
 import math
 from abc import ABC, abstractmethod
 from functions import bernoulli, monte_carlo, normalize, transport_to, lens_to_hemisphere, hemisphere_to_lens
-
+from displacement import Displacement, Direction
 
 class Sampler(ABC):
     @abstractmethod
-    def sample(self):
+    def sample(self, **inputs):
         pass
 
     @abstractmethod
-    def likelihood(self, sample):
+    def likelihood(self, sample, **inputs):
         pass
 
-    def resample(self, old_sample):
+    def resample(self, old_sample, **inputs):
         return self.sample()
 
-    def likelihood_ratio(self, new_sample, old_sample):
-        return self.likelihood(old_sample)/self.likelihood(new_sample)
+    def lr(self, new_sample, old_sample, **inputs):
+        return self.likelihood(old_sample, **inputs)/self.likelihood(new_sample, **inputs)
 
 
 class UniformSphere(Sampler):
-    def sample(self):
+    def sample(self, **incidence_data):
         def ppf_theta(t):
             return math.acos(1-2*t)
         def ppf_phi(t):
             return 2*math.pi*t
         theta = monte_carlo(ppf_theta)
         phi = monte_carlo(ppf_phi)
-        return np.array([math.sin(theta)*math.cos(phi), math.sin(theta)*math.sin(phi), math.cos(theta)])
+        return Direction(np.array([math.sin(theta)*math.cos(phi), math.sin(theta)*math.sin(phi), math.cos(theta)]))
 
-    def likelihood(self,sample):
+    def likelihood(self, direction, **incidence_data):
         return 1/(4*math.pi)
 
     def infinitesimal(self):
@@ -39,16 +39,16 @@ class UniformSphere(Sampler):
 
 #the hemisphere is understood to be the upper half sphere (i.e. x^2+y^2+z^2=1, z>0)
 class UniformHemisphere(Sampler):
-    def sample(self):
+    def sample(self, **incidence_data):
         def ppf_theta(t):
             return math.acos(1-t)
         def ppf_phi(t):
             return 2*math.pi*t
         theta = monte_carlo(ppf_theta)
         phi = monte_carlo(ppf_phi)
-        return np.array([math.sin(theta)*math.cos(phi), math.sin(theta)*math.sin(phi), math.cos(theta)])
+        return Direction(np.array([math.sin(theta)*math.cos(phi), math.sin(theta)*math.sin(phi), math.cos(theta)]))
 
-    def likelihood(self,sample):
+    def likelihood(self, direction, **incidence_data):
         return 1/(2*math.pi)
 
     def infinitesimal(self):
@@ -60,24 +60,24 @@ class KentSphere(Sampler):#FIXME: this is designed to be used as a resampler; it
     def __init__(self, kappa=1):
         self.kappa = kappa
 
-    def sample(self):
+    def sample(self, **incidence_data):
         def ppf_phi(t):
             return 2*math.pi*t
         def ppf_u(t): #u = cos(theta)
             return 1+(1/self.kappa)*math.log(t+(1-t)*math.exp(-2*self.kappa))
         phi = monte_carlo(ppf_phi)
         u = monte_carlo(ppf_u)
-        return np.array([math.sqrt(1-u**2)*math.cos(phi), math.sqrt(1-u**2)*math.sin(phi), u])
+        return Direction(np.array([math.sqrt(1-u**2)*math.cos(phi), math.sqrt(1-u**2)*math.sin(phi), u]))
 
-    def likelihood(self,sample):
-        sample = normalize(sample)
-        return math.exp(self.kappa*np.array.dot(sample,np.array([0,0,1])))*self.kappa/(4*math.pi*math.sinh(self.kappa))
+    def likelihood(self, direction, **incidence_data):
+        return math.exp(self.kappa*direction.idem.item(2))*self.kappa/(4*math.pi*math.sinh(self.kappa))
 
-    def resample(self,old_sample):
-        sample = self.sample()
+    def resample(self, old_direction, **incidence_data):
+        new_direction = self.sample(**incidence_data)
+        new_direction.transform()
         return transport_to(old_sample, sample)
 
-    def likelihood_ratio(self, new_sample, old_sample):
+    def lr(self, new_sample, old_sample):
         return 1
 
     def infinitesimal(self):
