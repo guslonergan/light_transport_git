@@ -1,5 +1,5 @@
 import unittest
-import scene
+# import scene
 import numpy as np
 import random
 import math
@@ -246,7 +246,7 @@ class Scene_test(unittest.TestCase):
 
 
 
-x = Scene_test()
+# x = Scene_test()
 # x.hit_test()
 # x.cast_test()
 # x.see_test()

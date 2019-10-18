@@ -209,12 +209,7 @@
 # ------------------------------------------------------------
 
 
-from vectors import Displacement, Direction
 
-x = Direction('photon checking in...')
-y = Direction(np.array([1,2,3]))
-print(x.idem)
-print(y.idem)
 
 
 

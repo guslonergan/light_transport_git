@@ -14,10 +14,10 @@ class Locale(ABC):
         pass
 
     def orient(self, displacement):
-        return displacement.transform(self.orthoframe)
+        displacement.transform(self.orthoframe)
 
     def unorient(self, displacement):
-        return displacement.transform(self.orthoframe.transpose())
+        displacement.transform(self.orthoframe.transpose())
 
     @abstractmethod
     def hit(self, point):

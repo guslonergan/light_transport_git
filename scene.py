@@ -6,6 +6,7 @@ import logging
 from functions import normalize, extend_to_O, lens_to_hemisphere, hemisphere_to_lens, bernoulli
 from sampler import LensSam as LensSampler
 from displacement import Displacement, Direction
+from piece import Piece, State
 import random
 
 
@@ -27,7 +28,7 @@ class Boundary(GeometricObject):
         pieces = set()
         for piece in self.pieces:
             if piece.is_emitter:
-                pieces.add{piece}
+                pieces.add(piece)
         return Boundary(pieces)
 
     @property
@@ -35,7 +36,7 @@ class Boundary(GeometricObject):
         pieces = set()
         for piece in self.pieces:
             if piece.is_lens:
-                pieces.add{piece}
+                pieces.add(piece)
         return Boundary(pieces)
 
 # Core geometric operations:
@@ -108,7 +109,7 @@ class Boundary(GeometricObject):
         return final_state
 
     def sampled_final_state_likelihood(absorbed_state, final_state):
-        return final_state.sampled_point_likelihood
+        return final_state.sampled_final_state_likelihood
 
 # Rules for sampling directions:
 
@@ -132,7 +133,7 @@ class Boundary(GeometricObject):
             direction = self.sample_direction(incoming_displacement, current_state)
             next_point = self.hit(current_state, direction)
             next_state = next_point.make_state(current_state.color)
-            return return next_state
+            return next_state
 
     def sampled_next_state_likelihood(self, previous_state, current_state, next_state):
         if previous_state.location is 'created' and current_state.location is 'emitted':
@@ -155,54 +156,7 @@ class Boundary(GeometricObject):
 # ---------------------------------------------------------------------------
 
 
-class PhysicalBoundary(ABC): # TODO: make this work with full spectrum colors and refraction/attenuation indices
-    @abstractmethod
-    def physical_likelihood(self, Ricochet, beam_color):
-        pass
 
-
-class Lambertian(PhysicalBoundary):
-    def __init__(self, color, emittance = 0):
-        self.color = color
-        self.emittance = emittance
-
-    def physical_likelihood(self, bouncebeam):
-        if bouncebeam.incoming_vector is 'emitted':
-            a = self.emittance
-        elif bouncebeam.incoming_vector.item(2) < 0:
-            a = - normalize(bouncebeam.incoming_vector).item(2)
-        else:
-            a = 0
-
-        if bouncebeam.outgoing_direction is 'absorbed':
-            b = 1
-            #does a need to change in this instance?
-        elif bouncebeam.outgoing_direction.item(2) > 0:
-            b = bouncebeam.outgoing_direction.item(2)
-        else:
-            b = 0
-
-        return self.color.likelihood(bouncebeam.beam_color)*a*b/math.pi
-
-
-class Atomic(PhysicalBoundary):
-    def __init__(self, color, emittance = 0):
-        self.color = color
-        self.emittance = emittance
-
-    def physical_likelihood(self, bouncebeam):
-        if bouncebeam.incoming_vector is 'emitted':
-            a = self.emittance
-        else:
-            a = 1
-
-        if bouncebeam.outgoing_direction is 'absorbed':
-            b = 1
-            #does a need to change in this instance?
-        else:
-            b = 1/(4*math.pi)
-
-        return self.color.likelihood(bouncebeam.beam_color)*a*b
 
 
 # ---------------------------------------------------------------------------

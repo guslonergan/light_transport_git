@@ -1,9 +1,12 @@
 class Material:
-    def __init__(self, bounce_sampler, bounce_resampler, color_sampler, color_resampler, physical_likelihood):
+    def __init__(self, bounce_sampler, bounce_resampler, color_sampler, color_resampler, physicallikelihood):
         self.bounce_sampler = bounce_sampler
         self.bounce_resampler = bounce_resampler
         self.color_sampler = color_sampler
-        self.physical_likelihood = physical_likelihood
+        self.color_resampler = color_resampler
+        self.physicallikelihood = physicallikelihood
+        self.is_emitter = self.physicallikelihood.is_emitter
+        self.is_lens = self.physicallikelihood.is_lens
 
     def sample_bounce(self, **incidence_data):
         return self.bounce_sampler.sample(**incidence_data)
@@ -29,5 +32,5 @@ class Material:
     def resampled_color_lr(self, new_color, old_color):
         return self.color_resampler.lr(self, new_color, old_color)
 
-    def physical_likelihood(self, bounce, **incidence_data):
-        return self.physical_likelihood.compute(bounce, **incidence_data)
+    def physicallikelihood(self, bounce, **incidence_data):
+        return self.physicallikelihood.compute(bounce, **incidence_data)

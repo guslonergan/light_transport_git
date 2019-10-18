@@ -10,8 +10,13 @@ def monte_carlo(ppf):
     return ppf(x)
 
 def normal_ppf(m, s):
+    def helper(t):
+        return norm.ppf(t, m, s)
+    return helper
+
+def normal_pdf(m, s):
     def helper(x):
-        return norm.ppf(x, m, s)
+        return norm.pdf(x, m, s)
     return helper
 
 def normalize(vector):
